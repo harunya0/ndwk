@@ -3,12 +3,14 @@
 
 #include <stddef.h>
 #include <stdbool.h>
+#include <stdint.h>
 
 typedef struct vad_detector_t vad_detector_t;
 
 typedef struct {
     const float *samples; // PCMデータのサンプル
     size_t num_samples;   // サンプル数
+    int64_t start_sample; // セグメントの開始サンプル位置
 } vad_segment_t;
 
 vad_detector_t *vad_detector_create(const char *model_dir);

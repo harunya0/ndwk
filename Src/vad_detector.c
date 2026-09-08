@@ -59,6 +59,7 @@ bool vad_detector_pop_segment(vad_detector_t *detector, vad_segment_t *out_seg) 
     const SherpaOnnxSpeechSegment *seg = SherpaOnnxVoiceActivityDetectorFront(detector->vad);
     out_seg->samples = seg->samples;
     out_seg->num_samples = (size_t)seg->n;
+    out_seg->start_sample = (int64_t)seg->start;
 
     SherpaOnnxVoiceActivityDetectorPop(detector->vad);
 

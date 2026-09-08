@@ -5,6 +5,7 @@
 #include "model_config.h"
 #include "vad_detector.h"
 #include "asr_engine.h"
+#include "audio_history.h"
 
 int main(void){
     const char *wav_path = "test/ja/ja_014.wav";
@@ -30,6 +31,9 @@ int main(void){
         return 1;
     }
 
+    audio_history_t *history = audio_history_create(16000, 10.0f);
+
+    audio_history_push(history, wav.samples, wav.num_samples);
     vad_detector_accept(vad, wav.samples, wav.num_samples);
     vad_detector_flush(vad);
 
@@ -42,8 +46,13 @@ int main(void){
         printf("--- [Segment %d] (samples: %zu, 約 %.2f 秒) ---\n",
                seg_count, seg.num_samples, (double)seg.num_samples / 16000.0);
         
-        const char *text = asr_engine_transcribe(asr, seg.samples, seg.num_samples);
+        size_t full_samples = 0;
+        float *full_audio = audio_history_with_preroll(
+                history, seg.start_sample, seg.samples, seg.num_samples, &full_samples);
+        
+        const char *text = asr_engine_transcribe(asr, full_audio, full_samples);
         printf("Transcription: %s\n", text);
+        free(full_audio);
     }
 
     if (seg_count == 0) {
