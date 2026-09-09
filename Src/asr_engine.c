@@ -41,6 +41,9 @@ const char *asr_engine_transcribe(const asr_engine_t *engine, const float *sampl
     }
     
     const SherpaOnnxOfflineStream *stream = SherpaOnnxCreateOfflineStream(engine->recognizer);
+    if (!stream) {
+        return "";
+    }
     SherpaOnnxAcceptWaveformOffline(stream, 16000, samples, (int32_t)num_samples);
     SherpaOnnxDecodeOfflineStream(engine->recognizer, stream);
 

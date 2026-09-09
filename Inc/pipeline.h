@@ -12,4 +12,6 @@ void pipeline_destroy(pipeline_t *pipeline);
 
 void pipeline_run_wav(pipeline_t *pipeline, const wav_data_t *wav);
 
+void pipeline_run_mic(pipeline_t *pipeline);
+
 #endif // PIPELINE_H

@@ -40,11 +40,21 @@ void audio_history_destroy(audio_history_t *history) {
 void audio_history_push(audio_history_t *history, const float *samples, size_t num_samples) {
     if (!history || !samples || num_samples == 0) return;
 
-    if (num_samples > history->capacity) {
+    // バッファ容量を超える場合は、あふれる分を左にシフト（最古の音声を押し出す）
+    if (history->size + num_samples > history->capacity) {
         size_t overflow = (history->size + num_samples) - history->capacity;
+        if (overflow > history->size) {
+            overflow = history->size;
+        }
         memmove(history->buffer, history->buffer + overflow, (history->size - overflow) * sizeof(float));
         history->offset += (int64_t)overflow;
         history->size -= overflow;
+    }
+
+    // num_samples が capacity より大きい場合の安全ガード
+    if (num_samples > history->capacity) {
+        samples += (num_samples - history->capacity);
+        num_samples = history->capacity;
     }
 
     memcpy(history->buffer + history->size, samples, num_samples * sizeof(float));
@@ -75,6 +85,16 @@ float *audio_history_with_preroll(
     int64_t pre_count = 0;
     if (want < seg_start) {
         pre_count = seg_start - want;
+    }
+
+    // history->buffer の範囲外を読まないようにガード
+    if (pre_count > 0) {
+        size_t pre_offset = (size_t)(want - history->offset);
+        if (pre_offset >= history->size) {
+            pre_count = 0;
+        } else if (pre_offset + (size_t)pre_count > history->size) {
+            pre_count = (int64_t)(history->size - pre_offset);
+        }
     }
 
     size_t total_samples = (size_t)pre_count + seg_num_samples;

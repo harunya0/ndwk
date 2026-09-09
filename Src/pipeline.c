@@ -5,11 +5,13 @@
 #include "asr_engine.h"
 #include "audio_history.h"
 #include "lang_detector.h"
+#include "mic_reader.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <time.h>
+#include <signal.h>
 
 struct pipeline_t {
     const char *models_dir;
@@ -165,4 +167,115 @@ void pipeline_run_wav(pipeline_t *p, const wav_data_t *wav) {
 
         free(full_audio);
     }
+}
+
+static volatile bool g_mic_running = true;
+static void sigint_handler(int signum) {
+    (void)signum;
+    g_mic_running = false;
+}
+
+void pipeline_run_mic(pipeline_t *p) {
+    if (!p) return;
+
+    mic_reader_t *mic = mic_reader_create(NDWK_SAMPLE_RATE);
+    if (!mic || !mic_reader_start(mic)) {
+        fprintf(stderr, "Failed to initialize microphone reader.\n");
+        if (mic) mic_reader_destroy(mic);
+        return;
+    }
+
+    g_mic_running = true;
+    signal(SIGINT, sigint_handler);
+
+    printf("=== ndwk Real-time Streaming Speech Recognition (Mic) ===\n");
+    printf("Listening... Press Ctrl+C to stop.\n");
+
+    const size_t chunk_size = NDWK_VAD_WINDOW_SIZE;
+    const size_t partial_interval = (size_t)(NDWK_SAMPLE_RATE * NDWK_PARTIAL_INTERVAL_SEC);
+    const size_t max_partial_samples = (size_t)(NDWK_SAMPLE_RATE * NDWK_PARTIAL_WINDOW_SEC);
+
+    float chunk[NDWK_VAD_WINDOW_SIZE];
+    size_t samples_since_partial = 0;
+
+    while (g_mic_running) {
+        size_t n = mic_reader_read(mic, chunk, chunk_size);
+        if (n == 0) {
+            usleep(5000); // 5ms待って次のサンプルを待つ
+            continue;
+        }
+
+        audio_history_push(p->history, chunk, n);
+        vad_detector_accept(p->vad, chunk, n);
+        samples_since_partial += n;
+        if(vad_detector_is_speech(p->vad) && samples_since_partial >= partial_interval) {
+            samples_since_partial = 0;
+
+            size_t recent_n = 0;
+            const float *recent_audio = audio_history_get_recent(p->history, max_partial_samples, &recent_n);
+
+            if (recent_audio && p->asr) {
+                const char *partial_text = asr_engine_transcribe(p->asr, recent_audio, recent_n);
+                if (partial_text && partial_text[0] != '\0') {
+                    printf("\033[2K\r~ %s", partial_text);
+                    fflush(stdout);
+                }
+            }
+        }
+
+        vad_segment_t seg;
+        while (vad_detector_pop_segment(p->vad, &seg)) {
+            size_t full_samples = 0;
+            float *full_audio = audio_history_with_preroll(
+                    p->history, seg.start_sample, seg.samples, seg.num_samples, &full_samples);
+
+            if (p->auto_detect && p->lid) {
+                ndwk_lang_t detected = lang_detector_detect(p->lid, full_audio, full_samples);
+                if (detected != p->current_lang) {
+                    asr_engine_destroy(p->asr);
+                    p->asr = asr_engine_create(p->models_dir, detected);
+                    p->current_lang = detected;
+                }
+            }
+
+            if (p->asr) {
+                const char *final_text = asr_engine_transcribe(p->asr, full_audio, full_samples);
+                printf("\033[2K\r[確定 (%s)]: %s\n", lang_to_string(p->current_lang), final_text);
+                fflush(stdout);
+            }
+
+            free(full_audio);
+        }
+    }
+
+    printf("\nStopping microphone reader...\n");
+
+    // 終了時に未確定の音声が残っていれば flush して文字起こし
+    vad_detector_flush(p->vad);
+    vad_segment_t seg;
+    while (vad_detector_pop_segment(p->vad, &seg)) {
+        size_t full_samples = 0;
+        float *full_audio = audio_history_with_preroll(
+                p->history, seg.start_sample, seg.samples, seg.num_samples, &full_samples);
+
+        if (p->auto_detect && p->lid) {
+            ndwk_lang_t detected = lang_detector_detect(p->lid, full_audio, full_samples);
+            if (detected != p->current_lang) {
+                asr_engine_destroy(p->asr);
+                p->asr = asr_engine_create(p->models_dir, detected);
+                p->current_lang = detected;
+            }
+        }
+
+        if (p->asr) {
+            const char *final_text = asr_engine_transcribe(p->asr, full_audio, full_samples);
+            printf("\033[2K\r[確定 (%s)]: %s\n", lang_to_string(p->current_lang), final_text);
+            fflush(stdout);
+        }
+
+        free(full_audio);
+    }
+
+    mic_reader_stop(mic);
+    mic_reader_destroy(mic);
 }

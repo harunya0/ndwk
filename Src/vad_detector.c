@@ -7,11 +7,13 @@
 
 struct vad_detector_t {
     const SherpaOnnxVoiceActivityDetector *vad;
+    const SherpaOnnxSpeechSegment *last_seg;
 };
 
 vad_detector_t *vad_detector_create(const char *models_dir) {
     vad_detector_t *detector = malloc(sizeof(vad_detector_t));
     if (!detector) return NULL;
+    memset(detector, 0, sizeof(*detector));
 
     SherpaOnnxVadModelConfig config = model_config_create_vad(models_dir);
     detector->vad = SherpaOnnxCreateVoiceActivityDetector(&config, 30.0f);
@@ -26,6 +28,10 @@ vad_detector_t *vad_detector_create(const char *models_dir) {
 
 void vad_detector_destroy(vad_detector_t *detector) {
     if (detector) {
+        if (detector->last_seg) {
+            SherpaOnnxDestroySpeechSegment(detector->last_seg);
+            detector->last_seg = NULL;
+        }
         if (detector->vad) {
             SherpaOnnxDestroyVoiceActivityDetector(detector->vad);
         }
@@ -52,15 +58,24 @@ void vad_detector_flush(vad_detector_t *detector) {
 bool vad_detector_pop_segment(vad_detector_t *detector, vad_segment_t *out_seg) {
     if (!detector || !detector->vad || !out_seg) return false;
 
+    // 前回のセグメントがあれば安全に破棄
+    if (detector->last_seg) {
+        SherpaOnnxDestroySpeechSegment(detector->last_seg);
+        detector->last_seg = NULL;
+    }
+
     if (SherpaOnnxVoiceActivityDetectorEmpty(detector->vad)) {
         return false;
     }
 
     const SherpaOnnxSpeechSegment *seg = SherpaOnnxVoiceActivityDetectorFront(detector->vad);
+    if (!seg) return false;
+
     out_seg->samples = seg->samples;
     out_seg->num_samples = (size_t)seg->n;
     out_seg->start_sample = (int64_t)seg->start;
 
+    detector->last_seg = seg;
     SherpaOnnxVoiceActivityDetectorPop(detector->vad);
 
     return true;

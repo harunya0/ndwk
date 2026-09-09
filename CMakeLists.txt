@@ -17,13 +17,13 @@ add_executable(ndwk ${SOURCES})
 # 3. インクルードパスの設定 (ターゲット指定で綺麗に管理)
 target_include_directories(ndwk PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/Inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sherpa-onnx/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/include
 )
 
 # 4. 共有ライブラリ (.so) の探索パス
 target_link_directories(ndwk PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/sherpa-onnx/lib
+    ${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/lib
 )
 
 # 5. リンクするライブラリ
@@ -32,10 +32,12 @@ target_link_directories(ndwk PRIVATE
 target_link_libraries(ndwk PRIVATE
     sherpa-onnx-c-api
     m
+    pthread
+    dl
 )
 
 # 6. RPATH の設定
 set_target_properties(ndwk PROPERTIES
-    BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/sherpa-onnx/lib"
-    INSTALL_RPATH "$ORIGIN/../third_party/sherpa-onnx/lib"
+    BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/lib"
+    INSTALL_RPATH "$ORIGIN/../Lib/sherpa-onnx/lib"
 )
