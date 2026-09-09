@@ -31,15 +31,23 @@ if not exist "Lib\dr_wav.h" (
 
 :: 2. Lib\miniaudio.h
 if not exist "Lib\miniaudio.h" (
-    echo [2/3] Downloading Lib\miniaudio.h...
+    echo [2/4] Downloading Lib\miniaudio.h...
     curl.exe -fSL --progress-bar -o Lib\miniaudio.h "https://raw.githubusercontent.com/mackron/miniaudio/master/miniaudio.h"
 ) else (
-    echo [2/3] Lib\miniaudio.h already exists. Skipping.
+    echo [2/4] Lib\miniaudio.h already exists. Skipping.
 )
 
-:: 3. Lib\sherpa-onnx (C-API binary for Windows x64)
+:: 3. Lib\onnxruntime_c_api.h
+if not exist "Lib\onnxruntime_c_api.h" (
+    echo [3/4] Downloading Lib\onnxruntime_c_api.h...
+    curl.exe -fSL --progress-bar -o Lib\onnxruntime_c_api.h "https://raw.githubusercontent.com/microsoft/onnxruntime/rel-1.17.1/include/onnxruntime/core/session/onnxruntime_c_api.h"
+) else (
+    echo [3/4] Lib\onnxruntime_c_api.h already exists. Skipping.
+)
+
+:: 4. Lib\sherpa-onnx (C-API binary for Windows x64)
 if not exist "Lib\sherpa-onnx" (
-    echo [3/3] Downloading sherpa-onnx C-API library for Windows...
+    echo [4/4] Downloading sherpa-onnx C-API library for Windows...
     set SHERPA_VER=v1.10.45
     set ARCHIVE=sherpa-onnx-!SHERPA_VER!-win-x64.zip
     set URL=https://github.com/k2-fsa/sherpa-onnx/releases/download/!SHERPA_VER!/!ARCHIVE!
@@ -77,6 +85,17 @@ if not exist "models\sherpa-onnx-zipformer-ja-en-reazonspeech-2025-01-17" (
     del /f /q models\zipformer-ja.tar.bz2
 ) else (
     echo [-] models\sherpa-onnx-zipformer-ja-en-reazonspeech-2025-01-17 already exists.
+)
+
+:: Mojicast Japanese Punctuation (BERT)
+if not exist "models\mojicast-punct-onnx" (
+    echo [-] Downloading mojicast-punct-onnx...
+    mkdir models\mojicast-punct-onnx
+    curl.exe -fSL --progress-bar -o models\mojicast-punct-onnx\punct_bert.onnx "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/punct_bert.onnx"
+    curl.exe -fSL --progress-bar -o models\mojicast-punct-onnx\vocab.txt "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/vocab.txt"
+    curl.exe -fSL --progress-bar -o models\mojicast-punct-onnx\README.md "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/README.md"
+) else (
+    echo [-] models\mojicast-punct-onnx already exists.
 )
 
 if "%DOWNLOAD_ALL%"=="true" (
@@ -118,17 +137,6 @@ if "%DOWNLOAD_ALL%"=="true" (
         del /f /q models\parakeet-en.tar.bz2
     ) else (
         echo [-] models\sherpa-onnx-nemo-parakeet-tdt already exists.
-    )
-
-    :: Mojicast Punctuation (BERT)
-    if not exist "models\mojicast-punct-onnx" (
-        echo [-] Downloading mojicast-punct-onnx...
-        mkdir models\mojicast-punct-onnx
-        curl.exe -fSL --progress-bar -o models\mojicast-punct-onnx\punct_bert.onnx "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/punct_bert.onnx"
-        curl.exe -fSL --progress-bar -o models\mojicast-punct-onnx\vocab.txt "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/vocab.txt"
-        curl.exe -fSL --progress-bar -o models\mojicast-punct-onnx\README.md "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/README.md"
-    ) else (
-        echo [-] models\mojicast-punct-onnx already exists.
     )
 )
 

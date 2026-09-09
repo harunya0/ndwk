@@ -1,4 +1,5 @@
 #include "model_config.h"
+#include "config.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -98,7 +99,7 @@ SherpaOnnxVadModelConfig model_config_create_vad(const char *models_dir) {
     config.silero_vad.threshold = 0.5f;
     config.silero_vad.min_silence_duration = 0.35f; // 0.35s 無音で終端判定
     config.silero_vad.min_speech_duration = 0.25f;  // 0.25s 以上の発話
-    config.silero_vad.window_size = 512;
+    config.silero_vad.window_size = NDWK_VAD_WINDOW_SIZE; // 512 samples (32ms)
     config.sample_rate = 16000;
     config.num_threads = 1;
 

@@ -1,6 +1,7 @@
 #include "vad_detector.h"
 #include "model_config.h"
 #include "sherpa-onnx/c-api/c-api.h"
+#include "config.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -10,9 +11,10 @@ struct vad_detector_t {
     const SherpaOnnxSpeechSegment *last_seg;
 };
 
+static vad_detector_t g_vad_detector;
+
 vad_detector_t *vad_detector_create(const char *models_dir) {
-    vad_detector_t *detector = malloc(sizeof(vad_detector_t));
-    if (!detector) return NULL;
+    vad_detector_t *detector = &g_vad_detector;
     memset(detector, 0, sizeof(*detector));
 
     SherpaOnnxVadModelConfig config = model_config_create_vad(models_dir);
@@ -20,7 +22,6 @@ vad_detector_t *vad_detector_create(const char *models_dir) {
 
     if (!detector->vad) {
         fprintf(stderr, "[vad_detector] Failed to create VAD\n");
-        free(detector);
         return NULL;
     }
     return detector;
@@ -35,17 +36,21 @@ void vad_detector_destroy(vad_detector_t *detector) {
         if (detector->vad) {
             SherpaOnnxDestroyVoiceActivityDetector(detector->vad);
         }
-        free(detector);
     }
 }
 
 void vad_detector_accept(vad_detector_t *detector, const float *samples, size_t num_samples) {
-    if (!detector || !detector->vad || !samples) return;
+    if (unlikely(!detector || !detector->vad || !samples)) return;
+
+    if (likely(num_samples == NDWK_VAD_WINDOW_SIZE)) {
+        SherpaOnnxVoiceActivityDetectorAcceptWaveform(detector->vad, samples, NDWK_VAD_WINDOW_SIZE);
+        return;
+    }
 
     size_t offset = 0;
     while (offset < num_samples) {
-        SherpaOnnxVoiceActivityDetectorAcceptWaveform(detector->vad, samples + offset, 512);
-        offset += 512;
+        SherpaOnnxVoiceActivityDetectorAcceptWaveform(detector->vad, samples + offset, NDWK_VAD_WINDOW_SIZE);
+        offset += NDWK_VAD_WINDOW_SIZE;
     }
 }
 

@@ -6,7 +6,8 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
 # コンパイル警告をしっかり出す
-add_compile_options(-Wall -Wextra)
+add_compile_options(-Wall -Wextra -O3 -flto -march=native)
+add_link_options(-flto -O3)
 
 # 1. ソースファイルの収集 (Src/ 配下のすべての .c を自動登録)
 file(GLOB SOURCES CONFIGURE_DEPENDS "Src/*.c")
@@ -31,6 +32,7 @@ target_link_directories(ndwk PRIVATE
 # - m: 数学ライブラリ (math.h)
 target_link_libraries(ndwk PRIVATE
     sherpa-onnx-c-api
+    onnxruntime
     m
     pthread
     dl

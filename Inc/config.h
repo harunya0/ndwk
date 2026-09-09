@@ -73,6 +73,23 @@
 #define NDWK_VAD_WINDOW_SIZE        512
 
 /**
+ * @warning 【変更厳禁】VAD 処理窓サイズ (サンプル数)
+ * Silero VAD モデルの入力テンソル形状が 512 サンプル (2^9 = 32ms) 固定です。
+ */
+#define NDWK_VAD_WINDOW_SHIFT       9
+#define NDWK_VAD_WINDOW_MASK        (NDWK_VAD_WINDOW_SIZE - 1)   // 511 (0x1FF)
+
+/**
+ * @brief 型サイズ計算用のビットシフト定数
+ */
+#define NDWK_FLOAT_SHIFT            2 // sizeof(float) == 4 (2^2)
+#define NDWK_INT64_SHIFT            3 // sizeof(int64_t) == 8 (2^3)
+#define NDWK_PARTIAL_INTERVAL_SAMPLES   4800   // 16000 * 0.30秒
+#define NDWK_PARTIAL_WINDOW_SAMPLES     96000  // 16000 * 6.0秒
+#define NDWK_PREROLL_SAMPLES            16000  // 16000 * 1.0秒
+#define NDWK_LID_MAX_SAMPLES            64000  // 16000 * 4.0秒
+
+/**
  * @brief VAD の発話検知感度 (0.0 〜 1.0)
  * - 標準値: 0.5f
  * - 下げると小さな声も拾いますが、周囲の雑音・マイクノイズに過剰反応します。
@@ -87,3 +104,15 @@
 #define NDWK_VAD_MIN_SPEECH_SEC     0.25f
 
 #endif // NDWK_CONFIG_H
+
+/**
+ * @brief 分岐予測ヒントマクロ (Linux カーネル互換)
+ * 最頻実行パス (ホットパス) をストレートライン化し、CPUの分岐予測ペナルティを排除します。
+ */
+#if defined(__GNUC__) || defined(__clang__)
+#define likely(x)   __builtin_expect(!!(x), 1)
+#define unlikely(x) __builtin_expect(!!(x), 0)
+#else
+#define likely(x)   (x)
+#define unlikely(x) (x)
+#endif

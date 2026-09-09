@@ -1,58 +1,63 @@
 #include "mic_reader.h"
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <pthread.h>
-// miniaudio の実装マクロはプロジェクト全体でこのファイルだけで定義する
+#include <stdatomic.h>
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
-#define MIC_RING_BUFFER_SECONDS  2.0f // 2秒分のFIFOバッファ
+#define MIC_RB_SHIFT    15
+#define MIC_RB_CAPACITY (1 << MIC_RB_SHIFT) // 32768 samples
+#define MIC_RB_MASK     (MIC_RB_CAPACITY - 1) // 0x7FFF
 
 struct mic_reader_t {
     ma_device device;
     bool is_started;
     unsigned int sample_rate;
 
-    float *rb_buffer;
-    size_t rb_capacity;
-    size_t rb_write_pos;
-    size_t rb_read_pos;
-    size_t rb_count;
-    pthread_mutex_t mutex;
+    _Alignas(64) float rb_buffer[MIC_RB_CAPACITY];
+    atomic_size_t head;
+    atomic_size_t tail;
 };
+
+static mic_reader_t g_mic;
 
 static void on_audio_capture(ma_device *pDevice, void *pOutput, const void *pInput, ma_uint32 frameCount) {
     (void)pOutput; // 出力は使用しない
     mic_reader_t *mic = (mic_reader_t *)pDevice->pUserData;
-    if (!mic || !pInput || frameCount == 0) return;
+    if (unlikely(!mic || !pInput || frameCount == 0)) return;
 
     const float *in_samples = (const float *)pInput;
 
-    pthread_mutex_lock(&mic->mutex);
+    size_t head = atomic_load_explicit(&mic->head, memory_order_relaxed);
+    size_t tail = atomic_load_explicit(&mic->tail, memory_order_acquire);
 
-    for (ma_uint32 i = 0; i < frameCount; ++i) {
-        mic->rb_buffer[mic->rb_write_pos] = in_samples[i];
-        mic->rb_write_pos = (mic->rb_write_pos + 1) % mic->rb_capacity;
-
-        if (mic->rb_count < mic->rb_capacity) {
-            mic->rb_count++;
-        } else {
-            // バッファが満杯の場合は最古のデータを1つ捨てて read_pos を進める
-            mic->rb_read_pos = (mic->rb_read_pos + 1) % mic->rb_capacity;
-        }
+    size_t occumulate = head - tail;
+    if (unlikely(occumulate + frameCount > MIC_RB_CAPACITY)) {
+        size_t overflow = (occumulate + frameCount) - MIC_RB_CAPACITY;
+        atomic_store_explicit(&mic->tail, tail + overflow, memory_order_relaxed);
     }
-    pthread_mutex_unlock(&mic->mutex);
+
+    size_t write_idx = head & MIC_RB_MASK;
+    size_t to_end = MIC_RB_CAPACITY - write_idx;
+
+    if (likely(to_end >= frameCount)) {
+        memcpy(mic->rb_buffer + write_idx, in_samples, frameCount << NDWK_FLOAT_SHIFT);
+    } else {
+        memcpy(mic->rb_buffer + write_idx, in_samples, to_end << NDWK_FLOAT_SHIFT);
+        memcpy(mic->rb_buffer, in_samples + to_end, (frameCount - to_end) << NDWK_FLOAT_SHIFT);
+    }
+
+    atomic_store_explicit(&mic->head, head + frameCount, memory_order_release);
 }
 
 mic_reader_t *mic_reader_create(unsigned int sample_rate) {
-    mic_reader_t *mic = malloc(sizeof(mic_reader_t));
-    if (!mic) return NULL;
+    mic_reader_t *mic = &g_mic;
     memset(mic, 0, sizeof(*mic));
 
     mic->sample_rate = sample_rate;
-    mic->rb_capacity = (size_t)(MIC_RING_BUFFER_SECONDS * sample_rate);
-    mic->rb_buffer = malloc(mic->rb_capacity * sizeof(float));
-    pthread_mutex_init(&mic->mutex, NULL);
+    atomic_init(&mic->head, 0);
+    atomic_init(&mic->tail, 0);
 
     ma_device_config config = ma_device_config_init(ma_device_type_capture);
     config.capture.format = ma_format_f32;
@@ -62,9 +67,6 @@ mic_reader_t *mic_reader_create(unsigned int sample_rate) {
     config.pUserData = mic;
 
     if (ma_device_init(NULL, &config, &mic->device) != MA_SUCCESS) {
-        free(mic->rb_buffer);
-        pthread_mutex_destroy(&mic->mutex);
-        free(mic);
         return NULL;
     }
 
@@ -77,9 +79,6 @@ void mic_reader_destroy(mic_reader_t *mic) {
     if (!mic) return;
     mic_reader_stop(mic);
     ma_device_uninit(&mic->device);
-    pthread_mutex_destroy(&mic->mutex);
-    free(mic->rb_buffer);
-    free(mic);
 }
 
 bool mic_reader_start(mic_reader_t *mic) {
@@ -99,22 +98,28 @@ void mic_reader_stop(mic_reader_t *mic) {
 }
 
 size_t mic_reader_read(mic_reader_t *mic, float *out_samples, size_t max_samples) {
-    if (!mic || !out_samples || max_samples == 0) return 0;
+    if (unlikely(!mic || !out_samples || max_samples == 0)) return 0;
 
-    pthread_mutex_lock(&mic->mutex);
+    size_t head = atomic_load_explicit(&mic->head, memory_order_acquire);
+    size_t tail = atomic_load_explicit(&mic->tail, memory_order_relaxed);
+
+    size_t occupied = head - tail;
 
     // 要求されたサンプル数 (max_samples) が溜まるまでは読み出さない (ドロップ防止)
-    if (mic->rb_count < max_samples) {
-        pthread_mutex_unlock(&mic->mutex);
+    if (unlikely(occupied < max_samples)) {
         return 0;
     }
 
-    for (size_t i = 0; i < max_samples; i++) {
-        out_samples[i] = mic->rb_buffer[mic->rb_read_pos];
-        mic->rb_read_pos = (mic->rb_read_pos + 1) % mic->rb_capacity;
-    }
-    mic->rb_count -= max_samples;
-    pthread_mutex_unlock(&mic->mutex);
+    size_t read_idx = tail & MIC_RB_MASK;
+    size_t to_end = MIC_RB_CAPACITY - read_idx;
 
+    if (likely(to_end >= max_samples)) {
+        memcpy(out_samples, mic->rb_buffer + read_idx, max_samples << NDWK_FLOAT_SHIFT);
+    } else {
+        memcpy(out_samples, mic->rb_buffer + read_idx, to_end << NDWK_FLOAT_SHIFT);
+        memcpy(out_samples + to_end, mic->rb_buffer, (max_samples - to_end) << NDWK_FLOAT_SHIFT);
+    }
+
+    atomic_store_explicit(&mic->tail, tail + max_samples, memory_order_release);
     return max_samples;
 }

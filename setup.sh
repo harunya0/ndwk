@@ -28,15 +28,23 @@ fi
 
 # 2. Lib/miniaudio.h
 if [[ ! -f Lib/miniaudio.h ]]; then
-    echo "[2/3] Downloading Lib/miniaudio.h..."
+    echo "[2/4] Downloading Lib/miniaudio.h..."
     curl -fSL --progress-bar -o Lib/miniaudio.h "https://raw.githubusercontent.com/mackron/miniaudio/master/miniaudio.h"
 else
-    echo "[2/3] Lib/miniaudio.h already exists. Skipping."
+    echo "[2/4] Lib/miniaudio.h already exists. Skipping."
 fi
 
-# 3. Lib/sherpa-onnx (C-API binary)
+# 3. Lib/onnxruntime_c_api.h
+if [[ ! -f Lib/onnxruntime_c_api.h ]]; then
+    echo "[3/4] Downloading Lib/onnxruntime_c_api.h..."
+    curl -fSL --progress-bar -o Lib/onnxruntime_c_api.h "https://raw.githubusercontent.com/microsoft/onnxruntime/rel-1.17.1/include/onnxruntime/core/session/onnxruntime_c_api.h"
+else
+    echo "[3/4] Lib/onnxruntime_c_api.h already exists. Skipping."
+fi
+
+# 4. Lib/sherpa-onnx (C-API binary)
 if [[ ! -d Lib/sherpa-onnx ]]; then
-    echo "[3/3] Downloading sherpa-onnx C-API library..."
+    echo "[4/4] Downloading sherpa-onnx C-API library..."
     OS="$(uname -s)"
     ARCH="$(uname -m)"
     SHERPA_VER="v1.10.45"
@@ -94,6 +102,20 @@ else
     echo "[-] models/sherpa-onnx-zipformer-ja-en-reazonspeech-2025-01-17 already exists."
 fi
 
+# Mojicast Japanese Punctuation (BERT)
+if [[ ! -d models/mojicast-punct-onnx ]]; then
+    echo "[-] Downloading mojicast-punct-onnx..."
+    mkdir -p models/mojicast-punct-onnx
+    curl -fSL --progress-bar -o models/mojicast-punct-onnx/punct_bert.onnx \
+        "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/punct_bert.onnx"
+    curl -fSL --progress-bar -o models/mojicast-punct-onnx/vocab.txt \
+        "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/vocab.txt"
+    curl -fSL --progress-bar -o models/mojicast-punct-onnx/README.md \
+        "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/README.md"
+else
+    echo "[-] models/mojicast-punct-onnx already exists."
+fi
+
 if [[ "$DOWNLOAD_ALL" == true ]]; then
     # Whisper Tiny (LID)
     if [[ ! -d models/sherpa-onnx-whisper-tiny ]]; then
@@ -137,20 +159,6 @@ if [[ "$DOWNLOAD_ALL" == true ]]; then
         rm -f models/parakeet-en.tar.bz2
     else
         echo "[-] models/sherpa-onnx-nemo-parakeet-tdt already exists."
-    fi
-
-    # Mojicast Punctuation (BERT)
-    if [[ ! -d models/mojicast-punct-onnx ]]; then
-        echo "[-] Downloading mojicast-punct-onnx..."
-        mkdir -p models/mojicast-punct-onnx
-        curl -fSL --progress-bar -o models/mojicast-punct-onnx/punct_bert.onnx \
-            "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/punct_bert.onnx"
-        curl -fSL --progress-bar -o models/mojicast-punct-onnx/vocab.txt \
-            "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/vocab.txt"
-        curl -fSL --progress-bar -o models/mojicast-punct-onnx/README.md \
-            "https://huggingface.co/ishiki-emo/mojicast-punct-onnx/resolve/main/README.md"
-    else
-        echo "[-] models/mojicast-punct-onnx already exists."
     fi
 fi
 

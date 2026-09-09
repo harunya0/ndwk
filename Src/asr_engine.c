@@ -10,9 +10,10 @@ struct asr_engine_t {
     char last_text[1024];
 };
 
+static asr_engine_t g_asr_engine;
+
 asr_engine_t *asr_engine_create(const char *models_dir, ndwk_lang_t lang) {
-    asr_engine_t *engine = malloc(sizeof(asr_engine_t));
-    if (!engine) return NULL;
+    asr_engine_t *engine = &g_asr_engine;
     memset(engine, 0, sizeof(*engine));
 
     SherpaOnnxOfflineRecognizerConfig config = model_config_create_asr(models_dir, lang);
@@ -20,7 +21,6 @@ asr_engine_t *asr_engine_create(const char *models_dir, ndwk_lang_t lang) {
 
     if (!engine->recognizer) {
         fprintf(stderr, "[asr_engine] Failed to create recognizer\n");
-        free(engine);
         return NULL;
     }
     return engine;
@@ -31,7 +31,6 @@ void asr_engine_destroy(asr_engine_t *engine) {
         if (engine->recognizer) {
             SherpaOnnxDestroyOfflineRecognizer(engine->recognizer);
         }
-        free(engine);
     }
 }
 
@@ -51,7 +50,12 @@ const char *asr_engine_transcribe(const asr_engine_t *engine, const float *sampl
 
     asr_engine_t *mutable_engine = (asr_engine_t *)engine; // キャストして書き込み可能にする
     if (result && result->text) {
-        snprintf(mutable_engine->last_text, sizeof(mutable_engine->last_text), "%s", result->text);
+        size_t len = strlen(result->text);
+        if (len >= sizeof(mutable_engine->last_text)) {
+            len = sizeof(mutable_engine->last_text) - 1; // バッファあふれ防止
+        }
+        memcpy(mutable_engine->last_text, result->text, len);
+        mutable_engine->last_text[len] = '\0';
     } else {
         mutable_engine->last_text[0] = '\0';
     }

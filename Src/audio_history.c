@@ -1,64 +1,74 @@
 #include "audio_history.h"
-#include <stdlib.h>
+#include "config.h"
 #include <string.h>
-#include <stdio.h>
+
+#define AUDIO_HISTORY_SHIFT    18
+#define AUDIO_HISTORY_CAPACITY (1 << AUDIO_HISTORY_SHIFT) // 262,144 samples (約16.38秒)
+#define AUDIO_HISTORY_MASK     (AUDIO_HISTORY_CAPACITY - 1) // 0x3FFFF
 
 struct audio_history_t {
     unsigned int sample_rate;
     size_t capacity;
-    size_t size;
-    int64_t offset;
+    size_t size;             // 現在保持している有効サンプル数 (最大 CAPACITY)
+    int64_t offset;          // 最古サンプルの絶対位置
+    int64_t total_pushed;    // これまでに push された累計サンプル数
     int64_t last_seg_end;
-    float *buffer;
+    _Alignas(64) float buffer[AUDIO_HISTORY_CAPACITY];
+    _Alignas(64) float work_buffer[AUDIO_HISTORY_CAPACITY];
 };
 
+static audio_history_t g_history;
+
+static void ring_copy(const float *src, float *dst, int64_t start_pos, size_t count) {
+    size_t start_idx = (size_t)(start_pos & AUDIO_HISTORY_MASK);
+    size_t to_end = AUDIO_HISTORY_CAPACITY - start_idx;
+
+    if (likely(to_end >= count)) {
+        memcpy(dst, src + start_idx, count << NDWK_FLOAT_SHIFT);
+    } else {
+        memcpy(dst, src + start_idx, to_end << NDWK_FLOAT_SHIFT);
+        memcpy(dst + to_end, src, (count - to_end) << NDWK_FLOAT_SHIFT);
+    }
+}
+
 audio_history_t *audio_history_create(unsigned int sample_rate, float keep_seconds) {
-    audio_history_t *h = malloc(sizeof(audio_history_t));
-    if (!h) return NULL;
+    (void)keep_seconds;
+    audio_history_t *h = &g_history;
+    memset(h, 0, sizeof(*h));
 
     h->sample_rate = sample_rate;
-    h->capacity = (size_t)(keep_seconds * sample_rate);
-    h->size = 0;
-    h->offset = 0;
-    h->last_seg_end = 0;
-
-    h->buffer = malloc(h->capacity * sizeof(float));
-    if (!h->buffer) {
-        free(h);
-        return NULL;
-    }
+    h->capacity = AUDIO_HISTORY_CAPACITY;
     return h;
 }
 
-void audio_history_destroy(audio_history_t *history) {
-    if (history) {
-        free(history->buffer);
-        free(history);
-    }
-}
-
 void audio_history_push(audio_history_t *history, const float *samples, size_t num_samples) {
-    if (!history || !samples || num_samples == 0) return;
+    if (unlikely(!history || !samples || num_samples == 0)) return;
 
     // バッファ容量を超える場合は、あふれる分を左にシフト（最古の音声を押し出す）
-    if (history->size + num_samples > history->capacity) {
-        size_t overflow = (history->size + num_samples) - history->capacity;
-        if (overflow > history->size) {
-            overflow = history->size;
-        }
-        memmove(history->buffer, history->buffer + overflow, (history->size - overflow) * sizeof(float));
-        history->offset += (int64_t)overflow;
-        history->size -= overflow;
-    }
-
-    // num_samples が capacity より大きい場合の安全ガード
-    if (num_samples > history->capacity) {
+    if (unlikely(num_samples > history->capacity)) {
         samples += (num_samples - history->capacity);
         num_samples = history->capacity;
     }
 
-    memcpy(history->buffer + history->size, samples, num_samples * sizeof(float));
-    history->size += num_samples;
+    size_t write_idx = (size_t)(history->total_pushed & AUDIO_HISTORY_MASK);
+    size_t to_end = AUDIO_HISTORY_CAPACITY - write_idx;
+
+    if (likely(to_end >= num_samples)) {
+        memcpy(history->buffer + write_idx, samples, num_samples << NDWK_FLOAT_SHIFT);
+    } else {
+        memcpy(history->buffer + write_idx, samples, to_end << NDWK_FLOAT_SHIFT);
+        memcpy(history->buffer, samples + to_end, (num_samples - to_end) << NDWK_FLOAT_SHIFT);
+    }
+    
+    history->total_pushed += (int64_t)num_samples;
+
+    if (history->total_pushed > (int64_t)history->capacity) {
+        history->offset = history->total_pushed - (int64_t)history->capacity;
+        history->size = history->capacity;
+    } else {
+        history->offset = 0;
+        history->size = (size_t)history->total_pushed;
+    }
 }
 
 float *audio_history_with_preroll(
@@ -70,15 +80,10 @@ float *audio_history_with_preroll(
 ) {
     if (!history || !seg_samples || !out_num_samples) return NULL;
 
-    int64_t preroll_samples = (int64_t)(1.0f * history->sample_rate); // 1 second of preroll
-    int64_t want = seg_start - preroll_samples;
+    int64_t want = seg_start - NDWK_PREROLL_SAMPLES;
 
-    if (want < history->last_seg_end) {
-        want = history->last_seg_end;
-    }
-    if (want < history->offset) {
-        want = history->offset;
-    }
+    if (want < history->last_seg_end) want = history->last_seg_end;
+    if (want < history->offset) want = history->offset;
 
     history->last_seg_end = seg_start + (int64_t)seg_num_samples;
 
@@ -87,27 +92,15 @@ float *audio_history_with_preroll(
         pre_count = seg_start - want;
     }
 
-    // history->buffer の範囲外を読まないようにガード
-    if (pre_count > 0) {
-        size_t pre_offset = (size_t)(want - history->offset);
-        if (pre_offset >= history->size) {
-            pre_count = 0;
-        } else if (pre_offset + (size_t)pre_count > history->size) {
-            pre_count = (int64_t)(history->size - pre_offset);
-        }
-    }
-
     size_t total_samples = (size_t)pre_count + seg_num_samples;
-    float *out = malloc(total_samples * sizeof(float));
-    if (!out) return NULL;
+    if (total_samples > history->capacity) total_samples = history->capacity;
+
+    float *out = history->work_buffer;
 
     if (pre_count > 0) {
-        size_t pre_offset = (size_t)(want - history->offset);
-        memcpy(out, history->buffer + pre_offset, (size_t)pre_count * sizeof(float));
+        ring_copy(history->buffer, out, want, (size_t)pre_count);
     }
-
-    memcpy(out + pre_count, seg_samples, seg_num_samples * sizeof(float));
-
+    memcpy(out + pre_count, seg_samples, seg_num_samples << NDWK_FLOAT_SHIFT);
     *out_num_samples = total_samples;
     return out;
 }
@@ -124,6 +117,9 @@ const float *audio_history_get_recent(
         count = max_samples;
     }
 
+    int64_t start_pos = history->total_pushed - (int64_t)count;
+    ring_copy(history->buffer, history->work_buffer, start_pos, count);
+
     *out_samples = count;
-    return history->buffer + (history->size - count);
+    return history->work_buffer;
 }

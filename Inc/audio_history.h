@@ -7,7 +7,6 @@
 typedef struct audio_history_t audio_history_t;
 
 audio_history_t *audio_history_create(unsigned int sample_rate, float keep_seconds);
-void audio_history_destroy(audio_history_t *history);
 
 void audio_history_push(audio_history_t *history, const float *samples, size_t num_samples);
 

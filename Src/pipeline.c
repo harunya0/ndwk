@@ -21,11 +21,13 @@ struct pipeline_t {
     vad_detector_t *vad;
     audio_history_t *history;
     lang_detector_t *lid;
+    char last_partial[512];
 };
 
+static pipeline_t g_pipeline;
+
 pipeline_t *pipeline_create(const char *models_dir, ndwk_lang_t default_lang, bool auto_detect) {
-    pipeline_t *p = (pipeline_t *)malloc(sizeof(pipeline_t));
-    if (!p) return NULL;
+    pipeline_t *p = &g_pipeline;
     memset(p, 0, sizeof(pipeline_t));
 
     p->models_dir = models_dir;
@@ -56,93 +58,10 @@ void pipeline_destroy(pipeline_t *p) {
     if (!p) return;
     if (p->asr) asr_engine_destroy(p->asr);
     if (p->vad) vad_detector_destroy(p->vad);
-    if (p->history) audio_history_destroy(p->history);
     if (p->lid) lang_detector_destroy(p->lid);
-    free(p);
 }
 
-void pipeline_run_wav(pipeline_t *p, const wav_data_t *wav) {
-    if (!p || !wav || !wav->samples) return;
-
-    printf("=== ndwk Real-time Streaming Speech Recognition ===\n");
-
-    size_t offset = 0;
-    const size_t chunk_size = NDWK_VAD_WINDOW_SIZE; // 512 samples (32ms)
-    const size_t partial_interval = (size_t)(NDWK_SAMPLE_RATE * NDWK_PARTIAL_INTERVAL_SEC);
-    const size_t max_partial_samples = (size_t)(NDWK_SAMPLE_RATE * NDWK_PARTIAL_WINDOW_SEC);
-    size_t samples_since_partial = 0;
-    int last_partial_len = 0;
-
-    struct timespec start_time;
-    clock_gettime(CLOCK_MONOTONIC, &start_time);
-
-    while (offset < wav->num_samples) {
-        size_t n = chunk_size;
-        if (offset + n > wav->num_samples) {
-            n = wav->num_samples - offset;
-        }
-
-        audio_history_push(p->history, wav->samples + offset, n);
-        vad_detector_accept(p->vad, wav->samples + offset, n);
-
-        offset += n;
-        samples_since_partial += n;
-
-        // 1. 発話中の速報表示 (直近 max_partial_samples に絞って高速化)
-        if (vad_detector_is_speech(p->vad) && samples_since_partial >= partial_interval) {
-            samples_since_partial = 0;
-
-            size_t recent_n = 0;
-            const float *recent_audio = audio_history_get_recent(p->history, max_partial_samples, &recent_n);
-            if (recent_audio && p->asr) {
-                const char *partial_text = asr_engine_transcribe(p->asr, recent_audio, recent_n);
-                if (partial_text && partial_text[0] != '\0') {
-                    printf("\r~ %s", partial_text);
-                    int pad = last_partial_len - (int)strlen(partial_text);
-                    for (int i = 0; i < pad; i++) putchar(' ');
-                    fflush(stdout);
-                    last_partial_len = (int)strlen(partial_text);
-                }
-            }
-        }
-        // 2. 発話終了時の確定表示
-        vad_segment_t seg;
-        while (vad_detector_pop_segment(p->vad, &seg)) {
-            size_t full_samples = 0;
-            float *full_audio = audio_history_with_preroll(
-                    p->history, seg.start_sample, seg.samples, seg.num_samples, &full_samples);
-
-            if (p->auto_detect && p->lid) {
-                ndwk_lang_t detected = lang_detector_detect(p->lid, full_audio, full_samples);
-                if (detected != p->current_lang) {
-                    asr_engine_destroy(p->asr);
-                    p->asr = asr_engine_create(p->models_dir, detected);
-                    p->current_lang = detected;
-                }
-            }
-
-            if (p->asr) {
-                const char *final_text = asr_engine_transcribe(p->asr, full_audio, full_samples);
-                printf("\r[確定 (%s)]: %s\n", lang_to_string(p->current_lang), final_text);
-                fflush(stdout);
-                last_partial_len = 0;
-            }
-
-            free(full_audio);
-        }
-
-        struct timespec now;
-        clock_gettime(CLOCK_MONOTONIC, &now);
-        double elapsed_real = (now.tv_sec - start_time.tv_sec) + (now.tv_nsec - start_time.tv_nsec) / 1e9;
-        double audio_time = (double)offset / NDWK_SAMPLE_RATE;
-
-        if (audio_time > elapsed_real) {
-            useconds_t sleep_us = (useconds_t)((audio_time - elapsed_real) * 1e6);
-            usleep(sleep_us);
-        }
-    }
-
-    vad_detector_flush(p->vad);
+static void pipeline_process_final_segment(pipeline_t *p) {
     vad_segment_t seg;
     while (vad_detector_pop_segment(p->vad, &seg)) {
         size_t full_samples = 0;
@@ -162,11 +81,75 @@ void pipeline_run_wav(pipeline_t *p, const wav_data_t *wav) {
             const char *final_text = asr_engine_transcribe(p->asr, full_audio, full_samples);
             printf("\r[確定 (%s)]: %s\n", lang_to_string(p->current_lang), final_text);
             fflush(stdout);
-            last_partial_len = 0;
+            p->last_partial[0] = '\0';
+        }
+    }
+}
+
+void pipeline_run_wav(pipeline_t *p, const wav_data_t *wav) {
+    if (!p || !wav || !wav->samples) return;
+
+    printf("=== ndwk Real-time Streaming Speech Recognition ===\n");
+
+    size_t offset = 0;
+    const size_t chunk_size = NDWK_VAD_WINDOW_SIZE; // 512 samples (32ms)
+    size_t samples_since_partial = 0;
+
+    struct timespec start_time;
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
+
+    while (offset < wav->num_samples) {
+        size_t n = chunk_size;
+        if (offset + n > wav->num_samples) {
+            n = wav->num_samples - offset;
         }
 
-        free(full_audio);
+        audio_history_push(p->history, wav->samples + offset, n);
+        vad_detector_accept(p->vad, wav->samples + offset, n);
+
+        offset += n;
+        samples_since_partial += n;
+
+        // 1. 発話中の速報表示 (直近 max_partial_samples に絞って高速化)
+        if (samples_since_partial >= NDWK_PARTIAL_INTERVAL_SAMPLES && vad_detector_is_speech(p->vad)) {
+            samples_since_partial = 0;
+
+            size_t recent_n = 0;
+            const float *recent_audio = audio_history_get_recent(p->history, NDWK_PARTIAL_WINDOW_SAMPLES, &recent_n);
+            if (recent_audio && p->asr) {
+                const char *partial_text = asr_engine_transcribe(p->asr, recent_audio, recent_n);
+                if (partial_text && partial_text[0] != '\0') {
+                    if (strcmp(partial_text, p->last_partial) != 0) {
+                        printf("\033[2K\r~ %s", partial_text);
+                        fflush(stdout);
+                        strncpy(p->last_partial, partial_text, sizeof(p->last_partial) - 1);
+                        p->last_partial[sizeof(p->last_partial) - 1] = '\0';
+                    }
+                }
+            }
+        }
+        // 2. 発話終了時の確定表示
+        pipeline_process_final_segment(p);
+
+        struct timespec now;
+        clock_gettime(CLOCK_MONOTONIC, &now);
+        int64_t audio_ns = (int64_t)offset * 62500LL;
+        int64_t real_ns  = (int64_t)(now.tv_sec - start_time.tv_sec) * 1000000000LL +
+                        (int64_t)(now.tv_nsec - start_time.tv_nsec);
+
+        if (audio_ns > real_ns) {
+            int64_t diff_ns = audio_ns - real_ns;
+            struct timespec req = {
+                .tv_sec  = 0,
+                .tv_nsec = diff_ns
+            };
+            nanosleep(&req, NULL);
+        }
     }
+
+
+    vad_detector_flush(p->vad);
+    pipeline_process_final_segment(p);
 }
 
 static volatile bool g_mic_running = true;
@@ -192,8 +175,6 @@ void pipeline_run_mic(pipeline_t *p) {
     printf("Listening... Press Ctrl+C to stop.\n");
 
     const size_t chunk_size = NDWK_VAD_WINDOW_SIZE;
-    const size_t partial_interval = (size_t)(NDWK_SAMPLE_RATE * NDWK_PARTIAL_INTERVAL_SEC);
-    const size_t max_partial_samples = (size_t)(NDWK_SAMPLE_RATE * NDWK_PARTIAL_WINDOW_SEC);
 
     float chunk[NDWK_VAD_WINDOW_SIZE];
     size_t samples_since_partial = 0;
@@ -208,73 +189,33 @@ void pipeline_run_mic(pipeline_t *p) {
         audio_history_push(p->history, chunk, n);
         vad_detector_accept(p->vad, chunk, n);
         samples_since_partial += n;
-        if(vad_detector_is_speech(p->vad) && samples_since_partial >= partial_interval) {
+        if(samples_since_partial >= NDWK_PARTIAL_INTERVAL_SAMPLES && vad_detector_is_speech(p->vad)) {
             samples_since_partial = 0;
 
             size_t recent_n = 0;
-            const float *recent_audio = audio_history_get_recent(p->history, max_partial_samples, &recent_n);
+            const float *recent_audio = audio_history_get_recent(p->history, NDWK_PARTIAL_WINDOW_SAMPLES, &recent_n);
 
             if (recent_audio && p->asr) {
                 const char *partial_text = asr_engine_transcribe(p->asr, recent_audio, recent_n);
                 if (partial_text && partial_text[0] != '\0') {
-                    printf("\033[2K\r~ %s", partial_text);
-                    fflush(stdout);
+                    if (strcmp(partial_text, p->last_partial) != 0) {
+                        printf("\033[2K\r~ %s", partial_text);
+                        fflush(stdout);
+                        strncpy(p->last_partial, partial_text, sizeof(p->last_partial) - 1);
+                        p->last_partial[sizeof(p->last_partial) - 1] = '\0';
+                    }
                 }
             }
         }
 
-        vad_segment_t seg;
-        while (vad_detector_pop_segment(p->vad, &seg)) {
-            size_t full_samples = 0;
-            float *full_audio = audio_history_with_preroll(
-                    p->history, seg.start_sample, seg.samples, seg.num_samples, &full_samples);
-
-            if (p->auto_detect && p->lid) {
-                ndwk_lang_t detected = lang_detector_detect(p->lid, full_audio, full_samples);
-                if (detected != p->current_lang) {
-                    asr_engine_destroy(p->asr);
-                    p->asr = asr_engine_create(p->models_dir, detected);
-                    p->current_lang = detected;
-                }
-            }
-
-            if (p->asr) {
-                const char *final_text = asr_engine_transcribe(p->asr, full_audio, full_samples);
-                printf("\033[2K\r[確定 (%s)]: %s\n", lang_to_string(p->current_lang), final_text);
-                fflush(stdout);
-            }
-
-            free(full_audio);
-        }
+        pipeline_process_final_segment(p);
     }
 
     printf("\nStopping microphone reader...\n");
 
     // 終了時に未確定の音声が残っていれば flush して文字起こし
     vad_detector_flush(p->vad);
-    vad_segment_t seg;
-    while (vad_detector_pop_segment(p->vad, &seg)) {
-        size_t full_samples = 0;
-        float *full_audio = audio_history_with_preroll(
-                p->history, seg.start_sample, seg.samples, seg.num_samples, &full_samples);
-
-        if (p->auto_detect && p->lid) {
-            ndwk_lang_t detected = lang_detector_detect(p->lid, full_audio, full_samples);
-            if (detected != p->current_lang) {
-                asr_engine_destroy(p->asr);
-                p->asr = asr_engine_create(p->models_dir, detected);
-                p->current_lang = detected;
-            }
-        }
-
-        if (p->asr) {
-            const char *final_text = asr_engine_transcribe(p->asr, full_audio, full_samples);
-            printf("\033[2K\r[確定 (%s)]: %s\n", lang_to_string(p->current_lang), final_text);
-            fflush(stdout);
-        }
-
-        free(full_audio);
-    }
+    pipeline_process_final_segment(p);
 
     mic_reader_stop(mic);
     mic_reader_destroy(mic);

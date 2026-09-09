@@ -1,20 +1,27 @@
 #include "lang_detector.h"
 #include "sherpa-onnx/c-api/c-api.h"
+#include "config.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#define LANG_CODE(c1, c2) ((uint16_t)(c1) | ((uint16_t)(c2) << 8))
 
 struct lang_detector_t {
     const SherpaOnnxSpokenLanguageIdentification *slid;
 };
 
+static lang_detector_t g_lang_detector;
+
 ndwk_lang_t lang_from_string(const char *str) {
-    if (!str) return NDWK_LANG_JA;
-    if (strcmp(str, "ja") == 0) return NDWK_LANG_JA;
-    if (strcmp(str, "zh") == 0) return NDWK_LANG_ZH;
-    if (strcmp(str, "en") == 0) return NDWK_LANG_EN;
-    if (strcmp(str, "ko") == 0) return NDWK_LANG_KO;
-    return NDWK_LANG_JA; // デフォルトは日本語
+    if (!str || str[0] == '\0' || str[1] == '\0') return NDWK_LANG_JA;
+    uint16_t code = (uint8_t)str[0] | ((uint16_t)(uint8_t)str[1] << 8);
+    switch (code) {
+        case LANG_CODE('j', 'a'): return NDWK_LANG_JA;
+        case LANG_CODE('z', 'h'): return NDWK_LANG_ZH;
+        case LANG_CODE('e', 'n'): return NDWK_LANG_EN;
+        case LANG_CODE('k', 'o'): return NDWK_LANG_KO;
+        default:                  return NDWK_LANG_JA;
+    }
 }
 
 const char *lang_to_string(ndwk_lang_t lang) {
@@ -28,8 +35,8 @@ const char *lang_to_string(ndwk_lang_t lang) {
 }
 
 lang_detector_t *lang_detector_create(const char *models_dir) {
-    lang_detector_t *d = malloc(sizeof(lang_detector_t));
-    if (!d) return NULL;
+    lang_detector_t *d = &g_lang_detector;
+    memset(d, 0, sizeof(*d));
 
     static char enc[512], dec[512];
     snprintf(enc, sizeof(enc), "%s/sherpa-onnx-whisper-tiny/tiny-encoder.int8.onnx", models_dir);
@@ -45,7 +52,6 @@ lang_detector_t *lang_detector_create(const char *models_dir) {
     d->slid = SherpaOnnxCreateSpokenLanguageIdentification(&config);
     if (!d->slid) {
         fprintf(stderr, "[lang_detector] Failed to create SLID\n");
-        free(d);
         return NULL;
     }
     return d;
@@ -56,7 +62,6 @@ void lang_detector_destroy(lang_detector_t *detector) {
         if (detector->slid) {
             SherpaOnnxDestroySpokenLanguageIdentification(detector->slid);
         }
-        free(detector);
     }
 }
 
@@ -67,8 +72,8 @@ ndwk_lang_t lang_detector_detect(lang_detector_t *detector, const float *samples
             SherpaOnnxSpokenLanguageIdentificationCreateOfflineStream(detector->slid);
     
     size_t feed_samples = num_samples;
-    if (feed_samples > 16000 * 4) {
-        feed_samples = 16000 * 4; // 最大4秒分の音声を使用
+    if (feed_samples > NDWK_LID_MAX_SAMPLES) {
+        feed_samples = NDWK_LID_MAX_SAMPLES; // 最大4秒分の音声を使用
     }
 
    SherpaOnnxAcceptWaveformOffline(stream, 16000, samples, (int32_t)feed_samples); 
