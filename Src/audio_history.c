@@ -91,3 +91,19 @@ float *audio_history_with_preroll(
     *out_num_samples = total_samples;
     return out;
 }
+
+const float *audio_history_get_recent(
+    audio_history_t *history,
+    size_t max_samples,
+    size_t *out_samples
+) {
+    if (!history || history->size == 0 || !out_samples) return NULL;
+
+    size_t count = history->size;
+    if (count > max_samples) {
+        count = max_samples;
+    }
+
+    *out_samples = count;
+    return history->buffer + (history->size - count);
+}

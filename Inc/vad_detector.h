@@ -21,4 +21,6 @@ void vad_detector_flush(vad_detector_t *detector);
 
 bool vad_detector_pop_segment(vad_detector_t *detector, vad_segment_t *out_seg);
 
+bool vad_detector_is_speech(vad_detector_t *detector);
+
 #endif // VAD_DETECTOR_H

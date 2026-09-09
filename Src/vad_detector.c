@@ -65,3 +65,8 @@ bool vad_detector_pop_segment(vad_detector_t *detector, vad_segment_t *out_seg) 
 
     return true;
 }
+
+bool vad_detector_is_speech(vad_detector_t *detector) {
+    if (!detector || !detector->vad) return false;
+    return SherpaOnnxVoiceActivityDetectorDetected(detector->vad) != 0;
+}

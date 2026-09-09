@@ -19,4 +19,7 @@ float *audio_history_with_preroll(
     size_t *out_num_samples
 );
 
+const float *audio_history_get_recent(
+    audio_history_t *history, size_t max_samples, size_t *out_samples);
+
 #endif // AUDIO_HISTORY_H
