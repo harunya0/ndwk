@@ -15,6 +15,7 @@ add_compile_options(
 )
 add_link_options(-flto -O3)
 add_link_options(-Wl,--gc-sections)
+add_link_options(-s)
 
 # ソースファイルの収集 (Src/ 配下のすべての .c を自動登録)
 file(GLOB SOURCES CONFIGURE_DEPENDS "Src/*.c")

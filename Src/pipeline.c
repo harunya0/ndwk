@@ -171,6 +171,7 @@ void pipeline_run_wav(pipeline_t *p, const wav_data_t *wav) {
     size_t offset = 0;
     const size_t chunk_size = NDWK_VAD_WINDOW_SIZE; // 512 サンプル (32ms)
     size_t samples_since_partial = 0;
+    size_t speech_samples = 0; // 発話中のサンプル数 (速報表示用)
 
     // 実時間同期用のモノトニック基準時刻を取得
     struct timespec start_time;
@@ -188,13 +189,25 @@ void pipeline_run_wav(pipeline_t *p, const wav_data_t *wav) {
 
         offset += n;
         samples_since_partial += n;
+        
+        bool is_speech = vad_detector_is_speech(p->vad);
+        if (is_speech) {
+            speech_samples += n;
+        } else if (!is_speech && speech_samples > 0) {
+            speech_samples = 0; // 発話終了
+        }
 
         // 1. 発話中の速報表示 (一定間隔かつ発話中のみ推論を行い、負荷を抑制)
         if (samples_since_partial >= NDWK_PARTIAL_INTERVAL_SAMPLES && vad_detector_is_speech(p->vad)) {
             samples_since_partial = 0;
 
+            size_t target_samples = speech_samples + NDWK_PREROLL_SAMPLES; // 発話開始からの音声 + 直近 1.0 秒分
+            if (target_samples > NDWK_PARTIAL_WINDOW_SAMPLES) {
+                target_samples = NDWK_PARTIAL_WINDOW_SAMPLES; // 発話開始前の音声がない場合は直近 1.0 秒分のみ
+            }
+
             size_t recent_n = 0;
-            const float *recent_audio = audio_history_get_recent(p->history, NDWK_PARTIAL_WINDOW_SAMPLES, &recent_n);
+            const float *recent_audio = audio_history_get_recent(p->history, target_samples, &recent_n);
             if (recent_audio && p->asr) {
                 const char *partial_text = asr_engine_transcribe(p->asr, recent_audio, recent_n);
                 if (partial_text && partial_text[0] != '\0') {
@@ -270,6 +283,7 @@ void pipeline_run_mic(pipeline_t *p) {
     const size_t chunk_size = NDWK_VAD_WINDOW_SIZE;
     float chunk[NDWK_VAD_WINDOW_SIZE];
     size_t samples_since_partial = 0;
+    size_t speech_samples = 0; // 発話中のサンプル数 (速報表示用)
 
     while (g_mic_running) {
         // ロックフリーリングバッファからサンプルを取得
@@ -283,12 +297,25 @@ void pipeline_run_mic(pipeline_t *p) {
         vad_detector_accept(p->vad, chunk, n);
         samples_since_partial += n;
 
+        bool is_speech = vad_detector_is_speech(p->vad);
+        if (is_speech) {
+            speech_samples += n; // 発話中のサンプル数を増加
+        } else {
+            speech_samples = 0; // 発話終了
+        }
+
         // 速報字幕更新
         if (samples_since_partial >= NDWK_PARTIAL_INTERVAL_SAMPLES && vad_detector_is_speech(p->vad)) {
             samples_since_partial = 0;
 
+            // 発話期間の長さを計算
+            size_t target_samples = speech_samples + NDWK_PREROLL_SAMPLES; // 発話開始からの音声 + 直近 NDWK_PARTIAL_WINDOW_SAMPLES 秒分
+            if (target_samples > NDWK_PARTIAL_WINDOW_SAMPLES) {
+                target_samples = NDWK_PARTIAL_WINDOW_SAMPLES;
+            }
+
             size_t recent_n = 0;
-            const float *recent_audio = audio_history_get_recent(p->history, NDWK_PARTIAL_WINDOW_SAMPLES, &recent_n);
+            const float *recent_audio = audio_history_get_recent(p->history, target_samples, &recent_n);
 
             if (recent_audio && p->asr) {
                 const char *partial_text = asr_engine_transcribe(p->asr, recent_audio, recent_n);

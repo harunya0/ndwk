@@ -50,7 +50,7 @@ vad_detector_t *vad_detector_create(const char *models_dir) {
     // Silero VAD のモデル設定を構築
     SherpaOnnxVadModelConfig config = model_config_create_vad(models_dir);
     // 最大保持セグメントバッファ秒数: 30秒
-    detector->vad = SherpaOnnxCreateVoiceActivityDetector(&config, 30.0f);
+    detector->vad = SherpaOnnxCreateVoiceActivityDetector(&config, 10.0f);
 
     if (!detector->vad) {
         fprintf(stderr, "[vad_detector] Error: Failed to create Silero VAD\n");

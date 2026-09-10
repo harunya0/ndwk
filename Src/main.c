@@ -1,3 +1,4 @@
+#include <malloc.h>
 /**
  * @file main.c
  * @brief ndwk 音声認識システムの CLI エントリポイント
@@ -28,6 +29,11 @@
 #include "punct_engine.h"
 
 int main(int argc, char *argv[]) {
+#ifdef __linux__
+    mallopt(M_ARENA_MAX, 1);
+    mallopt(M_MMAP_THRESHOLD, 32768);
+#endif
+
     const char *wav_path = NULL;
     bool auto_detect = true;
     bool use_mic = false;

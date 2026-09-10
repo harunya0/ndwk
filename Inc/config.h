@@ -68,7 +68,7 @@
  * - VADが「発話」と判定する直前の環境音・子音の立ち上がりを巻き戻してASRに渡すことで、
  *   例えば「おはようございます」の「お」が欠落する現象を完全に防止します。
  */
-#define NDWK_PREROLL_SEC            1.0f
+#define NDWK_PREROLL_SEC            0.5f
 
 /**
  * @brief 発話終了 (確定) とみなす無音継続時間 (秒)
@@ -120,7 +120,7 @@
  * コンパイル時定数化により、実行時の浮動小数点乗算をゼロにします。
  */
 #define NDWK_PARTIAL_INTERVAL_SAMPLES   4800   // 16000 * 0.30秒
-#define NDWK_PREROLL_SAMPLES            16000  // 16000 * 1.0秒
+#define NDWK_PREROLL_SAMPLES            8000  // 16000 * 0.5秒
 #define NDWK_LID_MAX_SAMPLES            64000  // 16000 * 4.0秒 (言語判別に渡す最大サンプル数)
 
 /**
