@@ -25,18 +25,6 @@
 #include <string.h>
 
 /* =========================================================================
- * 定数定義
- * ========================================================================= */
-
-/**
- * @brief 履歴バッファ容量: 2^18 = 262,144 サンプル (16kHz で約 16.38 秒)
- * - 16kHz float32 で約 1 MB のメモリフットプリント
- */
-#define AUDIO_HISTORY_SHIFT    18
-#define AUDIO_HISTORY_CAPACITY (1 << AUDIO_HISTORY_SHIFT)
-#define AUDIO_HISTORY_MASK     (AUDIO_HISTORY_CAPACITY - 1) // 0x3FFFF
-
-/* =========================================================================
  * 構造体定義
  * ========================================================================= */
 
@@ -160,18 +148,18 @@ float *audio_history_with_preroll(
         pre_count = seg_start - want;
     }
 
-    size_t total_samples = (size_t)pre_count + seg_num_samples;
-    if (total_samples > history->capacity) total_samples = history->capacity;
+    size_t copy_seg = seg_num_samples;
+    if ((size_t)pre_count + copy_seg > history->capacity) {
+        copy_seg = history->capacity - (size_t)pre_count;
+    }
 
     float *out = history->work_buffer;
-
-    // 1. プリロール部分をリングバッファからワークバッファ先頭へコピー
     if (pre_count > 0) {
         ring_copy(history->buffer, out, want, (size_t)pre_count);
     }
-    // 2. VAD 発話本体をプリロールの直後に連結
-    memcpy(out + pre_count, seg_samples, seg_num_samples << NDWK_FLOAT_SHIFT);
-    *out_num_samples = total_samples;
+    memcpy(out + pre_count, seg_samples, copy_seg << NDWK_FLOAT_SHIFT);
+
+    *out_num_samples = (size_t)pre_count + copy_seg;
     return out;
 }
 

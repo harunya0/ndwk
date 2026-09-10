@@ -52,6 +52,7 @@
 struct pipeline_t {
     const char *models_dir;      /**< モデル配置ディレクトリパス */
     bool auto_detect;            /**< 言語自動判別有効フラグ */
+    bool enable_punct;           /**< 句読点自動挿入有効フラグ */
     ndwk_lang_t current_lang;    /**< 現在アクティブな認識言語 */
     asr_engine_t *asr;           /**< 音声認識エンジン */
     vad_detector_t *vad;         /**< 音声区間検出器 */
@@ -70,18 +71,23 @@ static pipeline_t g_pipeline;
  * ライフサイクル関数
  * ========================================================================= */
 
-pipeline_t *pipeline_create(const char *models_dir, ndwk_lang_t default_lang, bool auto_detect) {
+pipeline_t *pipeline_create(const char *models_dir, ndwk_lang_t default_lang, bool auto_detect, bool enable_punct) {
     pipeline_t *p = &g_pipeline;
     memset(p, 0, sizeof(pipeline_t));
 
     p->models_dir = models_dir;
     p->auto_detect = auto_detect;
     p->current_lang = default_lang;
+    p->enable_punct = enable_punct;
     
     // サブモジュールの初期化
     p->vad = vad_detector_create(models_dir);
     p->history = audio_history_create(NDWK_SAMPLE_RATE, NDWK_HISTORY_KEEP_SEC);
-    p->punct = punct_engine_create(models_dir);
+    if (enable_punct) {
+        p->punct = punct_engine_create();
+    } else {
+        p->punct = NULL;
+    }
 
     if (auto_detect) {
         p->lid = lang_detector_create(models_dir);
@@ -106,7 +112,6 @@ void pipeline_destroy(pipeline_t *p) {
     if (p->asr) asr_engine_destroy(p->asr);
     if (p->vad) vad_detector_destroy(p->vad);
     if (p->lid) lang_detector_destroy(p->lid);
-    if (p->punct) punct_engine_destroy(p->punct);
 }
 
 /* =========================================================================
@@ -140,7 +145,7 @@ static void pipeline_process_final_segment(pipeline_t *p) {
             const char *display_text = final_text;
 
             // 日本語かつ句読点エンジンが有効な場合、自然な句読点「、」「。」「？」を復元
-            if (p->current_lang == NDWK_LANG_JA && p->punct && final_text && final_text[0] != '\0') {
+            if (p->enable_punct && p->current_lang == NDWK_LANG_JA && p->punct && final_text && final_text[0] != '\0') {
                 display_text = punct_engine_restore(p->punct, final_text);
             }
 

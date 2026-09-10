@@ -24,7 +24,7 @@ typedef struct punct_engine_t punct_engine_t;
  * @param models_dir モデル配置ディレクトリパス ("models")
  * @return punct_engine_t* 初期化されたインスタンスポインタ (失敗時は NULL)
  */
-punct_engine_t *punct_engine_create(const char *models_dir);
+punct_engine_t *punct_engine_create(void);
 
 /**
  * @brief 平文テキストに自然な句読点「、」「。」「？」を復元・付与する
@@ -34,12 +34,5 @@ punct_engine_t *punct_engine_create(const char *models_dir);
  * @return const char* 句読点が付与されたテキスト (内部静的バッファへのポインタ、free 不要)
  */
 const char *punct_engine_restore(punct_engine_t *engine, const char *text);
-
-/**
- * @brief 句読点復元エンジンを破棄し、ONNX セッションおよびリソースを解放する
- *
- * @param engine 対象エンジンポインタ
- */
-void punct_engine_destroy(punct_engine_t *engine);
 
 #endif // PUNCT_ENGINE_H

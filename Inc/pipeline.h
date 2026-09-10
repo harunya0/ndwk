@@ -27,9 +27,10 @@ typedef struct pipeline_t pipeline_t;
  * @param models_dir モデル配置ディレクトリパス ("models")
  * @param default_lang 起動時の初期言語 (NDWK_LANG_JA など)
  * @param auto_detect 発話言語の自動検出を有効にするか (true: Whisper Tiny SLID 併用)
+ * @param enable_punct 句読点自動挿入を有効にするか (true: 有効)
  * @return pipeline_t* 初期化されたパイプラインポインタ (失敗時は NULL)
  */
-pipeline_t *pipeline_create(const char *models_dir, ndwk_lang_t default_lang, bool auto_detect);
+pipeline_t *pipeline_create(const char *models_dir, ndwk_lang_t default_lang, bool auto_detect, bool enable_punct);
 
 /**
  * @brief パイプラインを破棄し、内包する全サブモジュール (ASR, VAD, LID, Punct) を解放する

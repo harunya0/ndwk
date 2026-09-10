@@ -14,22 +14,33 @@
 #include <stdint.h>
 
 /* ========================================================================== */
-/*  1. ターゲット環境・ハードウェア性能に合わせた調整項目                     */
+/*  1. ターゲット環境・プロファイル設定 (Low-RAM vs 通常)                    */
 /* ========================================================================== */
 
-/**
- * @brief ONNX Runtime / 推論エンジンで使用するCPUスレッド数
- * - PC / サーバー (デスクトップ / ノート): 4
- * - 小型組み込みボード (Raspberry Pi Zero, Cortex-Aなど): 1 〜 2
- */
-#define NDWK_NUM_THREADS            4
+#ifdef NDWK_PROFILE_LOW_RAM
+// --- 【マイコン・低RAMプロファイル】 (バッファ消費: 約576KB) ---
+#define NDWK_NUM_THREADS                1       // 1スレッドでORTの作業メモリ削減
+#define NDWK_PARTIAL_WINDOW_SEC         2.5f    // 速報窓を2.5秒にしてCPU負荷激減
+#define NDWK_PARTIAL_WINDOW_SAMPLES     40000   // 16000 * 2.5秒
+#define AUDIO_HISTORY_SHIFT             17      // 2^17 = 131,072 サンプル (約8.2秒分, 計1MB)
+#define MIC_RB_SHIFT                    14      // 2^14 = 16,384 サンプル (約1.0秒分, 計64KB)
 
-/**
- * @brief 速報字幕 (Partial) に渡す最大音声秒数 (秒)
- * - PC環境: 6.0f (発話中の文章がリアルタイムに長く伸びていく)
- * - 小型マイコン環境: 1.5f 〜 2.0f (毎回の推論負荷を極小に抑え、処理落ちを防ぐ)
- */
-#define NDWK_PARTIAL_WINDOW_SEC     6.0f
+#else
+// --- 【通常デスクトッププロファイル】 (バッファ消費: 約2.1MB) ---
+#define NDWK_NUM_THREADS                4
+#define NDWK_PARTIAL_WINDOW_SEC         6.0f
+#define NDWK_PARTIAL_WINDOW_SAMPLES     96000   // 16000 * 6.0秒
+#define AUDIO_HISTORY_SHIFT             18      // 2^18 = 262,144 サンプル (約16.4秒分, 計2MB)
+#define MIC_RB_SHIFT                    15      // 2^15 = 32,768 サンプル (約2.0秒分, 計128KB)
+#endif
+
+// 2の冪乗サイズとビットマスクの共通計算
+#define AUDIO_HISTORY_CAPACITY          (1 << AUDIO_HISTORY_SHIFT)
+#define AUDIO_HISTORY_MASK              (AUDIO_HISTORY_CAPACITY - 1)
+
+#define MIC_RB_CAPACITY                 (1 << MIC_RB_SHIFT)
+#define MIC_RB_MASK                     (MIC_RB_CAPACITY - 1)
+
 
 /**
  * @brief 速報字幕 (Partial) の推論・画面更新間隔 (秒)
@@ -109,7 +120,6 @@
  * コンパイル時定数化により、実行時の浮動小数点乗算をゼロにします。
  */
 #define NDWK_PARTIAL_INTERVAL_SAMPLES   4800   // 16000 * 0.30秒
-#define NDWK_PARTIAL_WINDOW_SAMPLES     96000  // 16000 * 6.0秒
 #define NDWK_PREROLL_SAMPLES            16000  // 16000 * 1.0秒
 #define NDWK_LID_MAX_SAMPLES            64000  // 16000 * 4.0秒 (言語判別に渡す最大サンプル数)
 

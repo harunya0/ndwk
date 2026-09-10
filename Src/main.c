@@ -25,27 +25,32 @@
 #include "wav_reader.h"
 #include "pipeline.h"
 #include "lang_detector.h"
+#include "punct_engine.h"
 
 int main(int argc, char *argv[]) {
     const char *wav_path = NULL;
-    const char *models_dir = "models";
     bool auto_detect = true;
     bool use_mic = false;
+    const char *models_dir = "models";
     ndwk_lang_t lang = NDWK_LANG_JA; // デフォルト言語: 日本語
 
-    // 第1引数の解析 (--mic または WAV ファイルパス)
-    if (argc >= 2) {
-        if (strcmp(argv[1], "--mic") == 0) {
+   bool enable_punct = true; // 句読点自動挿入を有効化
+   
+   for (int i = 1; i < argc; ++i) {
+        if (strcmp(argv[i], "--mic") == 0) {
             use_mic = true;
-        } else {
-            wav_path = argv[1];
+        } else if (strcmp(argv[i], "--no-punct") == 0) {
+            enable_punct = false;
+        } else if (strcmp(argv[i], "auto") == 0) {
+            auto_detect = true;
+        } else if (argv[i][0] != '-') {
+            if (strstr(argv[i], ".wav") && strstr(argv[i], "/")) {
+                wav_path = argv[i];
+            } else {
+                auto_detect = false;
+                lang = lang_from_string(argv[i]);
+            }
         }
-    }
-
-    // 第2引数の解析 (言語コード指定: ja, zh, en, ko, または auto)
-    if (argc >= 3 && strcmp(argv[2], "auto") != 0) {
-        auto_detect = false;
-        lang = lang_from_string(argv[2]);
     }
 
     // 引数が指定されなかった場合のデフォルト動作
@@ -56,9 +61,11 @@ int main(int argc, char *argv[]) {
     printf("=== ndwk Speech Recognition ===\n");
     printf("Input: %s\n", use_mic ? "Live Microphone" : wav_path);
     printf("Mode:  %s\n\n", auto_detect ? "Auto Language Detection" : lang_to_string(lang));
+    printf("Punctuation: %s\n\n", enable_punct ? "Enabled" : "Disabled");
+    printf("Models: %s\n\n", models_dir);
 
     // パイプラインインスタンスの生成
-    pipeline_t *pipeline = pipeline_create(models_dir, lang, auto_detect);
+    pipeline_t *pipeline = pipeline_create(models_dir, lang, auto_detect, enable_punct);
     if (!pipeline) {
         fprintf(stderr, "Error: Failed to initialize pipeline.\n");
         return 1;
