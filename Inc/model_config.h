@@ -12,6 +12,7 @@
 #define MODEL_CONFIG_H
 
 #include "ndwk_types.h"
+#include "ndwk.h"
 #include "sherpa-onnx/c-api/c-api.h"
 
 /**
@@ -22,7 +23,7 @@
  * @return SherpaOnnxOfflineRecognizerConfig 構築された設定構造体
  */
 SherpaOnnxOfflineRecognizerConfig model_config_create_asr(
-    const char *models_dir, ndwk_lang_t lang);
+    const ndwk_config_t *cfg, ndwk_lang_t lang);
 
 /**
  * @brief Silero VAD (音声区間検出) 用の設定を構築する
@@ -31,6 +32,6 @@ SherpaOnnxOfflineRecognizerConfig model_config_create_asr(
  * @return SherpaOnnxVadModelConfig 構築された VAD 設定構造体
  */
 SherpaOnnxVadModelConfig model_config_create_vad(
-    const char *models_dir);
+    const ndwk_config_t *cfg);
 
 #endif // MODEL_CONFIG_H

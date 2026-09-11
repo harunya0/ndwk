@@ -11,6 +11,7 @@
 #ifndef ASR_ENGINE_H
 #define ASR_ENGINE_H
 
+#include "ndwk.h"
 #include "ndwk_types.h"
 #include <stddef.h>
 
@@ -22,11 +23,11 @@ typedef struct asr_engine_t asr_engine_t;
 /**
  * @brief 指定された言語用の ASR エンジンインスタンスを生成する
  *
- * @param model_dir ONNX モデル群が格納されているルートディレクトリ
+ * @param cfg 設定構造体ポインタ
  * @param lang 対象言語 (NDWK_LANG_JA, NDWK_LANG_EN 等)
  * @return asr_engine_t* 初期化されたインスタンスポインタ (失敗時は NULL)
  */
-asr_engine_t *asr_engine_create(const char *model_dir, ndwk_lang_t lang);
+asr_engine_t *asr_engine_create(const ndwk_config_t *cfg, ndwk_lang_t lang);
 
 /**
  * @brief ASR エンジンを破棄し、モデルのメモリを解放する

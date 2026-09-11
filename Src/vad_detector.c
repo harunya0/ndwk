@@ -43,12 +43,12 @@ static vad_detector_t g_vad_detector;
  * 公開関数
  * ========================================================================= */
 
-vad_detector_t *vad_detector_create(const char *models_dir) {
+vad_detector_t *vad_detector_create(const ndwk_config_t *cfg) {
     vad_detector_t *detector = &g_vad_detector;
     memset(detector, 0, sizeof(*detector));
 
     // Silero VAD のモデル設定を構築
-    SherpaOnnxVadModelConfig config = model_config_create_vad(models_dir);
+    SherpaOnnxVadModelConfig config = model_config_create_vad(cfg);
     // 最大保持セグメントバッファ秒数: 30秒
     detector->vad = SherpaOnnxCreateVoiceActivityDetector(&config, 10.0f);
 

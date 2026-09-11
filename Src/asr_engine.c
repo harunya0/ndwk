@@ -13,6 +13,7 @@
  *    - 呼び出し側は文字列の `free()` やライフサイクル管理を一切意識することなく利用可能。
  */
 
+#include "ndwk.h"
 #include "asr_engine.h"
 #include "model_config.h"
 #include "sherpa-onnx/c-api/c-api.h"
@@ -38,12 +39,12 @@ static asr_engine_t g_asr_engine;
  * 公開関数
  * ========================================================================= */
 
-asr_engine_t *asr_engine_create(const char *models_dir, ndwk_lang_t lang) {
+asr_engine_t *asr_engine_create(const ndwk_config_t *cfg, ndwk_lang_t lang) {
     asr_engine_t *engine = &g_asr_engine;
     memset(engine, 0, sizeof(*engine));
 
     // 言語に応じた ASR モデル設定を構築
-    SherpaOnnxOfflineRecognizerConfig config = model_config_create_asr(models_dir, lang);
+    SherpaOnnxOfflineRecognizerConfig config = model_config_create_asr(cfg, lang);
     engine->recognizer = SherpaOnnxCreateOfflineRecognizer(&config);
 
     if (!engine->recognizer) {

@@ -30,7 +30,7 @@
 #include <string.h>
 
 SherpaOnnxOfflineRecognizerConfig model_config_create_asr(
-    const char *models_dir, ndwk_lang_t lang) {
+    const ndwk_config_t *cfg, ndwk_lang_t lang) {
 
     SherpaOnnxOfflineRecognizerConfig config;
     memset(&config, 0, sizeof(config));
@@ -41,6 +41,9 @@ SherpaOnnxOfflineRecognizerConfig model_config_create_asr(
     static char decoder_path[512];
     static char joiner_path[512];
     static char tokens_path[512];
+
+    const char *models_dir = cfg->models_dir;
+    int32_t num_threads = cfg->num_threads;
 
     switch (lang) {
     case NDWK_LANG_JA: {
@@ -55,7 +58,7 @@ SherpaOnnxOfflineRecognizerConfig model_config_create_asr(
         config.model_config.transducer.decoder = decoder_path;
         config.model_config.transducer.joiner  = joiner_path;
         config.model_config.tokens             = tokens_path;
-        config.model_config.num_threads        = NDWK_NUM_THREADS;
+        config.model_config.num_threads        = num_threads;
         config.model_config.model_type         = "transducer";
         config.model_config.modeling_unit      = "cjkchar";
         config.decoding_method                 = "modified_beam_search";
@@ -71,7 +74,7 @@ SherpaOnnxOfflineRecognizerConfig model_config_create_asr(
 
         config.model_config.paraformer.model = model_path;
         config.model_config.tokens          = tokens_path;
-        config.model_config.num_threads     = NDWK_NUM_THREADS;
+        config.model_config.num_threads     = num_threads;
         config.model_config.debug           = 0;
         config.feat_config.sample_rate      = NDWK_SAMPLE_RATE;
         config.feat_config.feature_dim      = 80;
@@ -89,7 +92,7 @@ SherpaOnnxOfflineRecognizerConfig model_config_create_asr(
         config.model_config.transducer.decoder = decoder_path;
         config.model_config.transducer.joiner  = joiner_path;
         config.model_config.tokens             = tokens_path;
-        config.model_config.num_threads        = NDWK_NUM_THREADS;
+        config.model_config.num_threads        = num_threads;
         config.model_config.model_type         = "nemo_transducer";
         config.decoding_method                 = "greedy_search";
         config.feat_config.sample_rate         = NDWK_SAMPLE_RATE;
@@ -106,7 +109,7 @@ SherpaOnnxOfflineRecognizerConfig model_config_create_asr(
         config.model_config.sense_voice.language = "ko";
         config.model_config.sense_voice.use_itn = 1; // 逆テキスト正規化
         config.model_config.tokens          = tokens_path;
-        config.model_config.num_threads     = NDWK_NUM_THREADS;
+        config.model_config.num_threads     = num_threads;
         config.feat_config.sample_rate      = NDWK_SAMPLE_RATE;
         config.feat_config.feature_dim      = 80;
         break;
@@ -119,18 +122,18 @@ SherpaOnnxOfflineRecognizerConfig model_config_create_asr(
     return config;
 }
 
-SherpaOnnxVadModelConfig model_config_create_vad(const char *models_dir) {
+SherpaOnnxVadModelConfig model_config_create_vad(const ndwk_config_t *cfg) {
     SherpaOnnxVadModelConfig config;
     memset(&config, 0, sizeof(config));
 
     static char vad_model_path[512];
-    snprintf(vad_model_path, sizeof(vad_model_path), "%s/silero_vad.onnx", models_dir);
+    snprintf(vad_model_path, sizeof(vad_model_path), "%s/silero_vad.onnx", cfg->models_dir);
 
     config.silero_vad.model = vad_model_path;
-    config.silero_vad.threshold = NDWK_VAD_THRESHOLD;
-    config.silero_vad.min_silence_duration = NDWK_VAD_MIN_SILENCE_SEC;
-    config.silero_vad.min_speech_duration = NDWK_VAD_MIN_SPEECH_SEC;
-    config.silero_vad.max_speech_duration = NDWK_VAD_MAX_SPEECH_SEC;
+    config.silero_vad.threshold = cfg->vad_threshold;
+    config.silero_vad.min_silence_duration = cfg->vad_min_silence_sec;
+    config.silero_vad.min_speech_duration = cfg->vad_min_speech_sec;
+    config.silero_vad.max_speech_duration = cfg->vad_max_speech_sec;
     config.silero_vad.window_size = NDWK_VAD_WINDOW_SIZE;
     config.sample_rate = NDWK_SAMPLE_RATE;
     config.num_threads = 1; // VAD は超軽量モデルのため 1 スレッドで十分

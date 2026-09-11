@@ -128,12 +128,13 @@ float *audio_history_with_preroll(
     int64_t seg_start,
     const float *seg_samples,
     size_t seg_num_samples,
+    size_t preroll_samples,
     size_t *out_num_samples
 ) {
     if (!history || !seg_samples || !out_num_samples) return NULL;
 
     // プリロール希望位置 = 発話開始位置 - 1秒分 (16000サンプル)
-    int64_t want = seg_start - NDWK_PREROLL_SAMPLES;
+    int64_t want = seg_start - (int64_t)preroll_samples;
 
     // ガード1: 前回の発話区間の末尾よりも前には巻き戻さない (二重認識防止)
     if (want < history->last_seg_end) want = history->last_seg_end;

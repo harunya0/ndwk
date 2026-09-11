@@ -45,6 +45,7 @@ void audio_history_push(audio_history_t *history, const float *samples, size_t n
  * @param seg_start セグメント開始サンプル位置 (絶対サンプリングタイムライン)
  * @param seg_samples VAD から渡された発話音声サンプル配列
  * @param seg_num_samples 発話サンプルの長さ
+ * @param preroll_samples プリロールとして結合するサンプル数 (例: 16000 = 1秒分)
  * @param out_num_samples プリロール結合後の総サンプル数を格納する出力ポインタ
  * @return float* プリロールが結合された内部ワークバッファへのポインタ (free 不要)
  */
@@ -53,6 +54,7 @@ float *audio_history_with_preroll(
     int64_t seg_start,
     const float *seg_samples,
     size_t seg_num_samples,
+    size_t preroll_samples,
     size_t *out_num_samples
 );
 

@@ -11,6 +11,7 @@
 #ifndef VAD_DETECTOR_H
 #define VAD_DETECTOR_H
 
+#include "ndwk.h"
 #include <stddef.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -33,10 +34,10 @@ typedef struct {
 /**
  * @brief VAD 検出器インスタンスを生成・初期化する
  *
- * @param model_dir ONNX モデルが格納されているディレクトリパス
+ * @param cfg 設定構造体ポインタ
  * @return vad_detector_t* 初期化されたインスタンスポインタ (失敗時は NULL)
  */
-vad_detector_t *vad_detector_create(const char *model_dir);
+vad_detector_t *vad_detector_create(const ndwk_config_t *cfg);
 
 /**
  * @brief VAD 検出器を破棄し、関連リソースを解放する
