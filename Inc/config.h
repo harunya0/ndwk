@@ -27,9 +27,9 @@
 
 #else
 // --- 【通常デスクトッププロファイル】 (バッファ消費: 約2.1MB) ---
-#define NDWK_NUM_THREADS                4
-#define NDWK_PARTIAL_WINDOW_SEC         6.0f
-#define NDWK_PARTIAL_WINDOW_SAMPLES     96000   // 16000 * 6.0秒
+#define NDWK_NUM_THREADS                2
+#define NDWK_PARTIAL_WINDOW_SEC         3.0f
+#define NDWK_PARTIAL_WINDOW_SAMPLES     48000   // 16000 * 3.0秒
 #define AUDIO_HISTORY_SHIFT             18      // 2^18 = 262,144 サンプル (約16.4秒分, 計2MB)
 #define MIC_RB_SHIFT                    15      // 2^15 = 32,768 サンプル (約2.0秒分, 計128KB)
 #endif
@@ -47,7 +47,7 @@
  * - 推奨値: 0.30f 〜 0.50f (人間の知覚に自然で、かつ無駄なCPU消費を抑える黄金比)
  * - マイコン等でCPU負荷をさらに落としたい場合は 0.50f に延長可能
  */
-#define NDWK_PARTIAL_INTERVAL_SEC   0.30f
+#define NDWK_PARTIAL_INTERVAL_SEC   0.40f
 
 /**
  * @brief 音声履歴リングバッファの保持秒数 (秒)
@@ -78,6 +78,15 @@
  * - 大きくする (例: 0.60f): 文を1つにまとめやすくなるが、確定までの待ち時間が長くなる
  */
 #define NDWK_VAD_MIN_SILENCE_SEC    0.35f
+
+/**
+ * @brief 発話中でも一定間隔ごとに強制分割する最大発話継続時間 (秒)
+ * - 標準値: 8.0f (長時間の独白や講演でも、途中でASRを区切って確定字幕を出すことで、
+ *   体感速度を改善する)
+ * - 小さくする (例: 5.0f): 長い発話でも途中で確定字幕が出るため、体感速度はさらに改善するが、
+ *   発話の自然な流れが損なわれる可能性がある。
+ */
+ #define NDWK_VAD_MAX_SPEECH_SEC     8.0f
 
 /**
  * @brief VAD の発話検知スコア閾値 (0.0 〜 1.0)
@@ -119,7 +128,7 @@
  * @brief サンプル数に換算された主要インターバル定数 (16kHz基準)
  * コンパイル時定数化により、実行時の浮動小数点乗算をゼロにします。
  */
-#define NDWK_PARTIAL_INTERVAL_SAMPLES   4800   // 16000 * 0.30秒
+#define NDWK_PARTIAL_INTERVAL_SAMPLES   6400   // 16000 * 0.40秒
 #define NDWK_PREROLL_SAMPLES            8000  // 16000 * 0.5秒
 #define NDWK_LID_MAX_SAMPLES            64000  // 16000 * 4.0秒 (言語判別に渡す最大サンプル数)
 

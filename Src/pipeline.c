@@ -198,7 +198,7 @@ void pipeline_run_wav(pipeline_t *p, const wav_data_t *wav) {
         }
 
         // 1. 発話中の速報表示 (一定間隔かつ発話中のみ推論を行い、負荷を抑制)
-        if (samples_since_partial >= NDWK_PARTIAL_INTERVAL_SAMPLES && vad_detector_is_speech(p->vad)) {
+        if (samples_since_partial >= NDWK_PARTIAL_INTERVAL_SAMPLES && vad_detector_is_speech(p->vad) && speech_samples >= 4000) {
             samples_since_partial = 0;
 
             size_t target_samples = speech_samples + NDWK_PREROLL_SAMPLES; // 発話開始からの音声 + 直近 1.0 秒分
@@ -305,7 +305,7 @@ void pipeline_run_mic(pipeline_t *p) {
         }
 
         // 速報字幕更新
-        if (samples_since_partial >= NDWK_PARTIAL_INTERVAL_SAMPLES && vad_detector_is_speech(p->vad)) {
+        if (samples_since_partial >= NDWK_PARTIAL_INTERVAL_SAMPLES && vad_detector_is_speech(p->vad) && speech_samples >= 4000) {
             samples_since_partial = 0;
 
             // 発話期間の長さを計算

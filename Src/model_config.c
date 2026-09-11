@@ -130,6 +130,7 @@ SherpaOnnxVadModelConfig model_config_create_vad(const char *models_dir) {
     config.silero_vad.threshold = NDWK_VAD_THRESHOLD;
     config.silero_vad.min_silence_duration = NDWK_VAD_MIN_SILENCE_SEC;
     config.silero_vad.min_speech_duration = NDWK_VAD_MIN_SPEECH_SEC;
+    config.silero_vad.max_speech_duration = NDWK_VAD_MAX_SPEECH_SEC;
     config.silero_vad.window_size = NDWK_VAD_WINDOW_SIZE;
     config.sample_rate = NDWK_SAMPLE_RATE;
     config.num_threads = 1; // VAD は超軽量モデルのため 1 スレッドで十分
