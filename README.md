@@ -11,10 +11,12 @@ Designed for minimal resource footprint, edge Linux, and embedded microcontrolle
 
 ### Key Features
 
-- **Pure C11 Implementation**: No Python or heavy runtime dependencies. Engineered with single-responsibility modular architecture for portability to embedded and edge Linux devices.
-- **Low Memory Footprint**: Bounded resident RAM usage (under ~200MB). Avoids continuous heap allocations in real-time streaming loops.
+- **Pure C11 Core Engine**: No Python or heavy runtime dependencies. Engineered with single-responsibility modular architecture for portability to embedded and edge Linux devices (`libndwk.a`, `libndwk.so`).
+- **Multi-Language SDK**: First-class, zero-dependency bindings for **C# (.NET 10)** and **Rust** with idiomatic, type-safe APIs.
+- **Low Memory Footprint**: Bounded resident RAM usage (~174MB). Zero dynamic memory allocation (`malloc=0`) in real-time streaming loops.
 - **Live Microphone Input**: Real-time microphone capture across Linux, WSL2, and Windows via single-header `miniaudio`.
 - **Zero-Delay Streaming**: Monotonic clock drift compensation ensures exact real-time playback synchronization, printing instant partial drafts via terminal in-place overwrite.
+- **Punctuation Restoration**: Built-in lightweight Japanese punctuation restoration engine, automatically predicting commas, periods, and question marks in real-time.
 - **Audio Pre-roll (Head-dropout Prevention)**: Maintains a 10-second sliding history buffer, seamlessly prepending up to 1.0 second of pre-speech audio to eliminate VAD onset clipping.
 - **Multilingual Routing**:
   - **Japanese**: ReazonSpeech Zipformer (int8)
@@ -29,6 +31,8 @@ Designed for minimal resource footprint, edge Linux, and embedded microcontrolle
 - **C Compiler**: C11-compliant compiler (GCC 9+, Clang 10+, MSVC 2019+)
 - **Build Tool**: Ninja (recommended) or Make
 - **Supported Platforms**: Linux (x86_64, aarch64), WSL2 (Ubuntu 20.04+), Windows 10/11, macOS
+- *(Optional)* **.NET 10 SDK**: For C# bindings
+- *(Optional)* **Rust / Cargo**: For Rust bindings
 
 ### Quick Start
 
@@ -69,6 +73,11 @@ cmake --build build
 ```
 *(On Windows with MSVC: `cmake -B build && cmake --build build --config Release`)*
 
+This produces:
+- `build/libndwk.a`: Static core library (213 KB)
+- `build/libndwk.so`: Shared core library (27 KB)
+- `build/ndwk`: Standalone CLI executable (307 KB)
+
 ### Usage
 
 #### Live Microphone Mode
@@ -97,24 +106,36 @@ Input files must be 16kHz, 16-bit mono PCM WAV:
 ./build/ndwk test/ja/ja_014.wav ja
 ```
 
+#### Language Bindings (SDK)
+
+ndwk can be integrated into high-level languages with zero external dependencies via its clean C-ABI:
+
+**C# (.NET 10 / Unity):**
+```bash
+dotnet run --project bindings/csharp/Ndwk.Sample/Ndwk.Sample.csproj test/ja/ja_033.wav models
+```
+
+**Rust:**
+```bash
+cargo run --manifest-path bindings/rust/Cargo.toml -- test/ja/ja_033.wav models
+```
+
 ### Architecture
 
-The codebase adheres to Clean Architecture and the Single Responsibility Principle:
-
 ```text
-[ main.c ]  ----------------------- Entry point and CLI argument parser
-    |
-    v
-[ pipeline ]  --------------------- Pipeline orchestrator & monotonic clock sync
-    |
-    +-- [ mic_reader ]  ----------- Thread-safe microphone capture via miniaudio
-    +-- [ wav_reader ]  ----------- WAV file decoder via dr_wav
-    +-- [ audio_history ]  -------- 10-second sliding buffer with audio pre-roll
-    +-- [ vad_detector ]  --------- Voice activity detection via Silero VAD
-    +-- [ lang_detector ]  -------- Spoken language identification via Whisper-tiny
-    +-- [ asr_engine ]  ----------- Speech-to-text inference engine
-            |
-            +-- [ model_config ]  - Model path routing and hyperparameter builder
+[ main.c ] (CLI)      [ C# (.NET 10) ]      [ Rust ]
+    |                        |                 |
+    +------------------------+-----------------+
+                             | (C-ABI: Inc/ndwk.h)
+                             v
+                    [ libndwk.so / .a ]
+                             |
+         +-------------------+-------------------+
+         |                   |                   |
+   [ vad_detector ]    [ asr_engine ]     [ punct_engine ]
+    (Silero VAD)       (Zipformer/etc)     (Rule+CharLM)
+         |                   |
+   [ audio_history ]   [ model_config ]
 ```
 
 ### Credits & Acknowledgments
@@ -132,10 +153,12 @@ The codebase adheres to Clean Architecture and the Single Responsibility Princip
 
 ### 主な特徴
 
-- **純C11実装**: Python等の重量なランタイムに依存せず、C11 + CMake + Ninja で構築。組み込みLinuxやマイコン環境への移植を考慮した単一責任設計を採用。
-- **低メモリ消費**: 常駐メモリは約200MB以下。リアルタイム推論ループ内での不要な動的メモリ確保（malloc）を排除。
+- **純C11コアエンジン**: Python等の重量なランタイムに依存せず、C11 + CMake + Ninja で構築。組み込みLinuxやマイコン環境への移植を考慮したコアライブラリ（`libndwk.a`, `libndwk.so`）構成。
+- **多言語SDK対応**: 外部依存ゼロ（0 dependencies）の **C# (.NET 10)** および **Rust** 公式バインディングを同梱。
+- **超低メモリ消費**: 常駐メモリは約174MB。リアルタイム推論ループ内での不要な動的メモリ確保（`malloc=0`）を徹底排除。
 - **ライブマイク入力**: `miniaudio` を採用し、Linux / WSL2 / Windows においてクロスプラットフォームでリアルタイム録音に対応。
 - **ゼロ遅延ストリーミング**: 単調増加クロック（CLOCK_MONOTONIC）による実時間ドリフト補正を行い、端末行上書きによるリアルタイム速報字幕（Partial）表示を実現。
+- **自動句読点復元**: 日本語音声認識に特化した軽量句読点復元エンジンを内蔵し、「、」「。」「？」をリアルタイム自動付与。
 - **頭切れ防止（プリロール機能）**: 直近10秒のスライディングバッファを備え、VAD検知直前の実音声（最大1.0秒）を自動結合して発話語頭の母音欠落を完全に防止。
 - **多言語ハイブリッドルーティング**:
   - **日本語**: ReazonSpeech Zipformer (int8)
@@ -150,6 +173,8 @@ The codebase adheres to Clean Architecture and the Single Responsibility Princip
 - **Cコンパイラ**: C11 をサポートするコンパイラ (GCC 9+, Clang 10+, MSVC 2019+)
 - **ビルドツール**: Ninja (推奨) または Make
 - **対応OS**: Linux (x86_64, aarch64), WSL2 (Ubuntu 20.04+), Windows 10/11, macOS
+- *(任意)* **.NET 10 SDK**: C# バインディング用
+- *(任意)* **Rust / Cargo**: Rust バインディング用
 
 ### クイックスタート
 
@@ -190,6 +215,11 @@ cmake --build build
 ```
 *(Windows で MSVC を使用する場合: `cmake -B build && cmake --build build --config Release`)*
 
+ビルドにより以下の成果物が生成されます:
+- `build/libndwk.a`: 静的コアライブラリ (213 KB)
+- `build/libndwk.so`: 共有コアライブラリ (27 KB)
+- `build/ndwk`: スタンドアロン CLI 実行ファイル (307 KB)
+
 ### 使い方
 
 #### マイク入力モード (リアルタイム認識)
@@ -219,51 +249,70 @@ PULSE_SERVER=unix:/mnt/wslg/runtime-dir/pulse/native ./build/ndwk --mic
 ./build/ndwk test/ja/ja_014.wav ja
 ```
 
+#### 言語バインディング (SDK)
+
+C言語で提供される `ndwk.h` / `libndwk.so` を通じて、他言語から外部ライブラリ依存ゼロで組み込み可能です。
+
+**C# (.NET 10 / Unity):**
+```bash
+dotnet run --project bindings/csharp/Ndwk.Sample/Ndwk.Sample.csproj test/ja/ja_033.wav models
+```
+
+**Rust:**
+```bash
+cargo run --manifest-path bindings/rust/Cargo.toml -- test/ja/ja_033.wav models
+```
+
 ### アーキテクチャ構成
 
-クリーンアーキテクチャの原則に基づき、各モジュールの責務が明確に分離されています:
+クリーンアーキテクチャの原則に基づき、コアエンジンとインターフェースが完全に分離されています:
 
 ```text
-[ main.c ]  ----------------------- エントリポイントおよびCLI引数解析
-    |
-    v
-[ pipeline ]  --------------------- パイプライン統括および実時間クロック同期
-    |
-    +-- [ mic_reader ]  ----------- miniaudio によるスレッドセーフな音声キャプチャ
-    +-- [ wav_reader ]  ----------- dr_wav による WAV デコード
-    +-- [ audio_history ]  -------- 10秒スライディングバッファおよびプリロール結合
-    +-- [ vad_detector ]  --------- Silero VAD による発話区間検出
-    +-- [ lang_detector ]  -------- Whisper-tiny による言語自動判別
-    +-- [ asr_engine ]  ----------- 音声認識・テキスト変換推論
-            |
-            +-- [ model_config ]  - 各言語の ONNX パスおよび推論パラメータ構築
+[ main.c ] (CLI)      [ C# (.NET 10) ]      [ Rust ]
+    |                        |                 |
+    +------------------------+-----------------+
+                             | (C-ABI: Inc/ndwk.h)
+                             v
+                    [ libndwk.so / .a ]
+                             |
+         +-------------------+-------------------+
+         |                   |                   |
+   [ vad_detector ]    [ asr_engine ]     [ punct_engine ]
+    (Silero VAD)       (Zipformer/etc)     (Rule+CharLM)
+         |                   |
+   [ audio_history ]   [ model_config ]
 ```
 
 ### ディレクトリ構成
 
 ```text
 ndwk/
-├── CMakeLists.txt        # ビルド定義 (C11, -Wall -Wextra)
+├── CMakeLists.txt        # ビルド定義 (C11, libndwk.a / libndwk.so / ndwk)
 ├── setup.sh              # Linux/macOS 用自動セットアップスクリプト
 ├── setup.bat             # Windows 用自動セットアップスクリプト
 ├── README.md             # 本書
-├── Inc/                  # ヘッダーファイル
+├── Inc/                  # 公開・内部ヘッダーファイル
+│   ├── ndwk.h            # 公開 C-ABI ヘッダー
 │   ├── config.h          # チューニング可能定数 (閾値, スレッド数, 秒数)
 │   ├── ndwk_types.h      # 言語 enum などの共通型定義
-│   ├── pipeline.h        # パイプライン制御
 │   ├── mic_reader.h      # マイクキャプチャ
 │   ├── vad_detector.h    # VAD
 │   ├── audio_history.h   # スライディングバッファ
 │   ├── asr_engine.h      # 音声認識エンジン
 │   ├── lang_detector.h   # 言語判定
-│   └── model_config.h    # モデル設定
-├── Src/                  # 実装コード (.c)
+│   ├── model_config.h    # モデル設定
+│   └── punct_engine.h    # 句読点復元エンジン
+├── Src/                  # 実装コード (ndwk.c, main.c, ...)
+├── bindings/             # 多言語バインディング
+│   ├── csharp/           # C# (.NET 10) P/Invoke バインディング
+│   └── rust/             # Rust ゼロコスト FFI バインディング
 ├── Lib/                  # サードパーティライブラリ (setup スクリプトで配置)
 ├── models/               # ONNX モデル (setup スクリプトで配置)
-└── test/                 # テスト用音声ファイル
+├── test/                 # テスト用音声ファイル
+└── tmp/                  # 技術解説ドキュメント
 ```
 
 ### ライセンス
 
 本リポジトリのソースコードは [Apache-2.0 License](LICENSE) の下で公開されています。  
-各学習済みモデルおよびサードパーティライブラリのライセンスはそれぞれの配布元に従います。
+各学習済みモデルおよびサードパーティライブラリのライセンスはそれぞれの配布元に従います。\n
