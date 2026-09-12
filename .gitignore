@@ -58,6 +58,12 @@ bindings/java/bin/
 hs_err_pid*
 replay_pid*
 
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
 # --- Temporary & Scratch Files ---
 *.tmp
 *.temp
