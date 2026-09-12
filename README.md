@@ -12,7 +12,7 @@ Designed for minimal resource footprint, edge Linux, and embedded microcontrolle
 ### Key Features
 
 - **Pure C11 Core Engine**: No Python or heavy runtime dependencies. Engineered with single-responsibility modular architecture for portability to embedded and edge Linux devices (`libndwk.a`, `libndwk.so`).
-- **Multi-Language SDK**: First-class, zero-external-dependency bindings for **C# (.NET 10)**, **Rust (2024)**, **Go (1.26)**, and **Java (OpenJDK 22+ Panama FFM)** with idiomatic, type-safe APIs.
+- **Multi-Language SDK**: First-class, zero-external-dependency bindings for **C# (.NET 10)**, **Rust (2024)**, **Go (1.26)**, **Java (OpenJDK 22+ Panama FFM)**, and **Python (3.10+ ctypes)** with idiomatic, type-safe APIs.
 - **Low Memory Footprint**: Bounded resident RAM usage (~174MB). Zero dynamic memory allocation (`malloc=0`) in real-time streaming loops.
 - **Live Microphone Input**: Real-time microphone capture across Linux, WSL2, and Windows via single-header `miniaudio`.
 - **Zero-Delay Streaming**: Monotonic clock drift compensation ensures exact real-time playback synchronization, printing instant partial drafts via terminal in-place overwrite.
@@ -35,6 +35,7 @@ Designed for minimal resource footprint, edge Linux, and embedded microcontrolle
 - *(Optional)* **Rust / Cargo**: For Rust bindings
 - *(Optional)* **Go 1.18+**: For Go bindings
 - *(Optional)* **OpenJDK 22+**: For Java (Panama FFM) bindings
+- *(Optional)* **Python 3.10+**: For Python bindings
 
 ### Quick Start
 
@@ -133,11 +134,16 @@ javac -d bindings/java/bin bindings/java/src/ndwk/*.java
 java --enable-native-access=ALL-UNNAMED -cp bindings/java/bin ndwk.Sample test/ja/ja_033.wav models
 ```
 
+**Python (3.10+ ctypes):**
+```bash
+python bindings/python/sample.py test/ja/ja_033.wav models
+```
+
 ### Architecture
 
 ```text
-[ main.c ] (CLI)   [ C# (.NET 10) ]   [ Rust (2024) ]   [ Go (1.26) ]   [ Java (FFM) ]
-    |                     |                  |                 |               |
+[ main.c ] (CLI)   [ C# (.NET 10) ]   [ Rust (2024) ]   [ Go (1.26) ]   [ Java (FFM) ]   [ Python (ctypes) ]
+    |                     |                  |                 |               |                      |
     +---------------------+------------------+-----------------+---------------+
                                              | (C-ABI: Inc/ndwk.h)
                                              v
@@ -150,15 +156,6 @@ java --enable-native-access=ALL-UNNAMED -cp bindings/java/bin ndwk.Sample test/j
                          |                   |
                    [ audio_history ]   [ model_config ]
 ```
-
-### Technical Guides & Deep Dives
-
-Detailed technical architecture and FFI design documents for each language:
-- [C# (.NET 10) Binding Guide](tmp/CSHARP_GUIDE.md)
-- [Rust (2024) Binding Guide](tmp/RUST_GUIDE.md)
-- [Go (cgo) Binding Guide](tmp/GO_GUIDE.md)
-- [Java (Panama FFM) Binding Guide](tmp/JAVA_GUIDE.md)
-
 ### Credits & Acknowledgments
 
 - **ASR & VAD Engine**: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache-2.0)
@@ -180,6 +177,7 @@ Detailed technical architecture and FFI design documents for each language:
   - **Rust (2024)**: ゼロコスト C-ABI + トランポリンクロージャ
   - **Go (1.26)**: `cgo` + `cgo.Handle`（完全ポインタ安全・`go vet` 準拠）
   - **Java (OpenJDK 22+)**: Project Panama FFM API（ゼロ JNI・オフヒープメモリ安全）
+  - **Python (3.10+)**: ctypes FFI（標準ライブラリのみ・外部依存ゼロ）
 - **超低メモリ消費**: 常駐メモリは約174MB。リアルタイム推論ループ内での不要な動的メモリ確保（`malloc=0`）を徹底排除。
 - **ライブマイク入力**: `miniaudio` を採用し、Linux / WSL2 / Windows においてクロスプラットフォームでリアルタイム録音に対応。
 - **ゼロ遅延ストリーミング**: 単調増加クロック（`CLOCK_MONOTONIC`）による実時間ドリフト補正を行い、端末行上書きによるリアルタイム速報字幕（Partial）表示を実現。
@@ -202,6 +200,7 @@ Detailed technical architecture and FFI design documents for each language:
 - *(任意)* **Rust / Cargo**: Rust バインディング用
 - *(任意)* **Go 1.18+**: Go バインディング用
 - *(任意)* **OpenJDK 22+**: Java (Panama FFM) バインディング用
+- *(任意)* **Python 3.10+**: Python バインディング用
 
 ### クイックスタート
 
@@ -301,13 +300,18 @@ javac -d bindings/java/bin bindings/java/src/ndwk/*.java
 java --enable-native-access=ALL-UNNAMED -cp bindings/java/bin ndwk.Sample test/ja/ja_033.wav models
 ```
 
+**Python (3.10+ ctypes):**
+```bash
+python bindings/python/sample.py test/ja/ja_033.wav models
+```
+
 ### アーキテクチャ構成
 
 クリーンアーキテクチャの原則に基づき、コアエンジンとインターフェースが完全に分離されています:
 
 ```text
-[ main.c ] (CLI)   [ C# (.NET 10) ]   [ Rust (2024) ]   [ Go (1.26) ]   [ Java (FFM) ]
-    |                     |                  |                 |               |
+[ main.c ] (CLI)   [ C# (.NET 10) ]   [ Rust (2024) ]   [ Go (1.26) ]   [ Java (FFM) ]   [ Python (ctypes) ]
+    |                     |                  |                 |               |                      |
     +---------------------+------------------+-----------------+---------------+
                                              | (C-ABI: Inc/ndwk.h)
                                              v
@@ -320,14 +324,6 @@ java --enable-native-access=ALL-UNNAMED -cp bindings/java/bin ndwk.Sample test/j
                          |                   |
                    [ audio_history ]   [ model_config ]
 ```
-
-### 各言語バインディング技術解説ドキュメント
-
-各言語における FFI 実装パターン、メモリ管理、落とし穴の完全技術レポートです：
-- [C# (.NET 10) バインディング徹底解説](tmp/CSHARP_GUIDE.md)
-- [Rust (2024) バインディング徹底解説](tmp/RUST_GUIDE.md)
-- [Go (cgo) バインディング徹底解説](tmp/GO_GUIDE.md)
-- [Java (Panama FFM) バインディング徹底解説](tmp/JAVA_GUIDE.md)
 
 ### ディレクトリ構成
 
@@ -353,11 +349,11 @@ ndwk/
 │   ├── csharp/           # C# (.NET 10) P/Invoke バインディング
 │   ├── rust/             # Rust ゼロコスト FFI バインディング
 │   ├── go/               # Go cgo + cgo.Handle バインディング
-│   └── java/             # Java Panama FFM (Zero-JNI) バインディング
+│   ├── java/             # Java Panama FFM (Zero-JNI) バインディング
+│   └── python/           # Python ctypes バインディング
 ├── Lib/                  # サードパーティライブラリ (setup スクリプトで配置)
 ├── models/               # ONNX モデル (setup スクリプトで配置)
-├── test/                 # テスト用音声ファイル
-└── tmp/                  # 技術解説ドキュメント (CSHARP, RUST, GO, JAVA)
+└── test/                 # テスト用音声ファイル
 ```
 
 ### ライセンス
