@@ -73,20 +73,9 @@ void vad_detector_destroy(vad_detector_t *detector) {
 }
 
 void vad_detector_accept(vad_detector_t *detector, const float *samples, size_t num_samples) {
-    if (unlikely(!detector || !detector->vad || !samples)) return;
+    if (unlikely(!detector || !detector->vad || !samples || num_samples == 0)) return;
 
-    // 【ホットパス】標準チャンクサイズ (512サンプル = 32ms) の場合はループなしで即投入
-    if (likely(num_samples == NDWK_VAD_WINDOW_SIZE)) {
-        SherpaOnnxVoiceActivityDetectorAcceptWaveform(detector->vad, samples, NDWK_VAD_WINDOW_SIZE);
-        return;
-    }
-
-    // 任意の長さのサンプルが渡された場合は 512 サンプルずつに分割して処理
-    size_t offset = 0;
-    while (offset < num_samples) {
-        SherpaOnnxVoiceActivityDetectorAcceptWaveform(detector->vad, samples + offset, NDWK_VAD_WINDOW_SIZE);
-        offset += NDWK_VAD_WINDOW_SIZE;
-    }
+    SherpaOnnxVoiceActivityDetectorAcceptWaveform(detector->vad, samples, (int32_t)num_samples);
 }
 
 void vad_detector_flush(vad_detector_t *detector) {
