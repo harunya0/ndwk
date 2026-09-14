@@ -50,24 +50,29 @@ internal static class NdwkNative
     {
         NativeLibrary.SetDllImportResolver(typeof(NdwkNative).Assembly, (libraryName, assembly, searchPath) =>
         {
-            if (libraryName == LibName)
+            if (libraryName != LibName) return IntPtr.Zero;
+
+            // Platform-specific library name
+            string libFile = RuntimeInformation.IsOSPlatform(OSPlatform.Windows) ? "ndwk.dll"
+                           : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)     ? "libndwk.dylib"
+                           :                                                       "libndwk.so";
+
+            string[] candidates = [
+                // NuGet runtimes/ (copied to output by MSBuild)
+                Path.Combine(AppContext.BaseDirectory, libFile),
+                // Local development (build/ relative paths)
+                Path.Combine(AppContext.BaseDirectory, "build", libFile),
+                Path.Combine(AppContext.BaseDirectory, "..", "build", libFile),
+                Path.Combine(AppContext.BaseDirectory, "..", "..", "build", libFile),
+                Path.GetFullPath(Path.Combine("build", libFile)),
+                Path.GetFullPath(Path.Combine("..", "build", libFile)),
+                Path.GetFullPath(Path.Combine("..", "..", "build", libFile)),
+            ];
+
+            foreach (var path in candidates)
             {
-                string[] candidates = [
-                    "build/libndwk.so",
-                    "../build/libndwk.so",
-                    "../../build/libndwk.so",
-                    "libndwk.so",
-                    "libndwk.dll",
-                ];
-
-                foreach (var rel in candidates)
-                {
-                    var full = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, rel));
-                    if (File.Exists(full) && NativeLibrary.TryLoad(full, out var handle)) return handle;
-
-                    var cmd = Path.GetFullPath(rel);
-                    if (File.Exists(cmd) && NativeLibrary.TryLoad(cmd, out handle)) return handle;
-                }
+                if (File.Exists(path) && NativeLibrary.TryLoad(path, out var handle))
+                    return handle;
             }
             return IntPtr.Zero;
         });

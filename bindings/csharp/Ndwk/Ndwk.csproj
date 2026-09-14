@@ -1,9 +1,24 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
-
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+
+    <!-- NuGet Package Metadata -->
+    <PackageId>Ndwk</PackageId>
+    <Version>0.1.0</Version>
+    <Authors>wakanaharu</Authors>
+    <Description>Lightweight, zero-delay, CPU-only real-time multilingual speech recognition (ASR) engine. Pure C11 core with idiomatic .NET P/Invoke bindings. Supports Japanese, English, Chinese, Korean with automatic language detection.</Description>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/harunya0/ndwk</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/harunya0/ndwk</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>asr;speech-recognition;stt;vad;real-time;streaming;multilingual;japanese</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="" />
+    <None Include="runtimes\**\*" Pack="true" PackagePath="runtimes" />
+  </ItemGroup>
 </Project>

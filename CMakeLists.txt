@@ -5,9 +5,15 @@ project(ndwk VERSION 0.1.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
+# CI ビルドでは -DNDWK_PORTABLE=ON で -march=native を無効化
+option(NDWK_PORTABLE "Disable -march=native for portable binaries" OFF)
+if(NOT NDWK_PORTABLE)
+    add_compile_options(-march=native)
+endif()
+
 # コンパイル・リンク最適化オプション
 add_compile_options(
-    -Wall -Wextra -O3 -flto -march=native
+    -Wall -Wextra -O3 -flto
     -fno-math-errno
     -fno-trapping-math
     -fomit-frame-pointer
