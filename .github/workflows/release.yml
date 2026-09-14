@@ -59,13 +59,14 @@ jobs:
       - name: Download sherpa-onnx
         shell: bash
         run: |
-          mkdir -p Lib
+          mkdir -p Lib/sherpa-onnx
           URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/${{ env.SHERPA_VER }}/${{ matrix.sherpa_archive }}"
           echo "Downloading: ${URL}"
           curl -fSL -o "Lib/${{ matrix.sherpa_archive }}" "${URL}"
-          tar -xjf "Lib/${{ matrix.sherpa_archive }}" -C Lib/
-          EXTRACTED=$(find Lib -maxdepth 1 -type d -name "sherpa-onnx-*" | head -1)
-          mv "${EXTRACTED}" Lib/sherpa-onnx
+          tar --strip-components=1 -xjf "Lib/${{ matrix.sherpa_archive }}" -C Lib/sherpa-onnx
+          echo "Verifying sherpa-onnx files:"
+          ls -la Lib/sherpa-onnx/
+          ls -la Lib/sherpa-onnx/include/sherpa-onnx/c-api/
 
       - name: Download headers
         shell: bash
