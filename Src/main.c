@@ -1,4 +1,3 @@
-#include <malloc.h>
 /**
  * @file main.c
  * @brief ndwk 音声認識システムの CLI エントリポイント
@@ -21,6 +20,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
 #include <string.h>
 #include <signal.h>
 #include <time.h>

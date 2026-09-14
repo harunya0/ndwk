@@ -1,4 +1,3 @@
-#include <malloc.h>
 /**
  * @file ndwk.c
  * @brief ndwk 音声認識エンジン本体
@@ -19,6 +18,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
 #include <string.h>
 
 /* ===========================================================================
@@ -128,7 +130,9 @@ ndwk_t *ndwk_create(const ndwk_config_t *config) {
         return NULL;
     }
 #ifdef __linux__
+#if defined(__GLIBC__)
     malloc_trim(0);
+#endif
 #endif
     return p;
 }

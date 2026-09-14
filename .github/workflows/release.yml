@@ -11,7 +11,7 @@ permissions:
 
 env:
   SHERPA_VER: v1.10.45
-  NDWK_VERSION: 0.1.1
+  NDWK_VERSION: 0.1.2
 
 jobs:
   build-native:

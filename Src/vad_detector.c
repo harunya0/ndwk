@@ -30,7 +30,7 @@
  * ========================================================================= */
 
 struct vad_detector_t {
-    const SherpaOnnxVoiceActivityDetector *vad; /**< Sherpa-ONNX VAD ハンドル */
+    SherpaOnnxVoiceActivityDetector *vad; /**< Sherpa-ONNX VAD ハンドル */
     const SherpaOnnxSpeechSegment *last_seg;    /**< 前回ポップしたセグメントの破棄用保持ポインタ */
 };
 
@@ -50,7 +50,7 @@ vad_detector_t *vad_detector_create(const ndwk_config_t *cfg) {
     // Silero VAD のモデル設定を構築
     SherpaOnnxVadModelConfig config = model_config_create_vad(cfg);
     // 最大保持セグメントバッファ秒数: 30秒
-    detector->vad = SherpaOnnxCreateVoiceActivityDetector(&config, 10.0f);
+    detector->vad = (SherpaOnnxVoiceActivityDetector *)SherpaOnnxCreateVoiceActivityDetector(&config, 10.0f);
 
     if (!detector->vad) {
         fprintf(stderr, "[vad_detector] Error: Failed to create Silero VAD\n");

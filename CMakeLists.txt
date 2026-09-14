@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(ndwk VERSION 0.1.1 LANGUAGES C)
+project(ndwk VERSION 0.1.2 LANGUAGES C)
 
 # C11 標準を強制
 set(CMAKE_C_STANDARD 11)
@@ -81,39 +81,44 @@ target_link_directories(ndwk_shared PRIVATE
 
 target_link_libraries(ndwk_shared PRIVATE
     sherpa-onnx-c-api
-    onnxruntime
 )
+if(NOT MSVC)
+    target_link_libraries(ndwk_shared PRIVATE onnxruntime)
+endif()
 if(UNIX)
     target_link_libraries(ndwk_shared PRIVATE m pthread dl)
 endif()
 
-# CLI 実行ファイル
-add_executable(ndwk
-    Src/main.c
-    Src/wav_reader.c
-    Src/mic_reader.c
-)
+# CLI 実行ファイル（Windows MSVC では POSIX unistd.h 非対応のため除外）
+option(NDWK_BUILD_CLI "Build standalone CLI executable" ON)
+if(NDWK_BUILD_CLI AND NOT WIN32)
+    add_executable(ndwk
+        Src/main.c
+        Src/wav_reader.c
+        Src/mic_reader.c
+    )
 
-target_include_directories(ndwk PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/Inc
-    ${CMAKE_CURRENT_SOURCE_DIR}/Lib
-    ${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/include
-)
+    target_include_directories(ndwk PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Inc
+        ${CMAKE_CURRENT_SOURCE_DIR}/Lib
+        ${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/include
+    )
 
-target_link_directories(ndwk PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/lib
-)
+    target_link_directories(ndwk PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/lib
+    )
 
-target_link_libraries(ndwk PRIVATE
-    ndwk_static
-    sherpa-onnx-c-api
-    onnxruntime
-)
-if(UNIX)
-    target_link_libraries(ndwk PRIVATE m pthread dl)
+    target_link_libraries(ndwk PRIVATE
+        ndwk_static
+        sherpa-onnx-c-api
+        onnxruntime
+    )
+    if(UNIX)
+        target_link_libraries(ndwk PRIVATE m pthread dl)
+    endif()
+
+    set_target_properties(ndwk PROPERTIES
+        BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/lib"
+        INSTALL_RPATH "$ORIGIN/../Lib/sherpa-onnx/lib"
+    )
 endif()
-
-set_target_properties(ndwk PROPERTIES
-    BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/lib"
-    INSTALL_RPATH "$ORIGIN/../Lib/sherpa-onnx/lib"
-)
