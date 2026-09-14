@@ -11,7 +11,7 @@ permissions:
 
 env:
   SHERPA_VER: v1.10.45
-  NDWK_VERSION: 0.1.3
+  NDWK_VERSION: 0.1.4
 
 jobs:
   build-native:
@@ -64,15 +64,18 @@ jobs:
           echo "Downloading: ${URL}"
           curl -fSL -o "Lib/${{ matrix.sherpa_archive }}" "${URL}"
           tar --strip-components=1 -xjf "Lib/${{ matrix.sherpa_archive }}" -C Lib/sherpa-onnx
-          echo "Verifying sherpa-onnx files:"
-          ls -la Lib/sherpa-onnx/
-          ls -la Lib/sherpa-onnx/include/sherpa-onnx/c-api/
 
       - name: Download headers
         shell: bash
         run: |
+          mkdir -p Lib/sherpa-onnx/include/sherpa-onnx/c-api
+          curl -fSL -o Lib/sherpa-onnx/include/sherpa-onnx/c-api/c-api.h "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/${{ env.SHERPA_VER }}/sherpa-onnx/c-api/c-api.h"
+          curl -fSL -o Lib/sherpa-onnx/include/sherpa-onnx/c-api/cxx-api.h "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/${{ env.SHERPA_VER }}/sherpa-onnx/c-api/cxx-api.h"
           curl -fSL -o Lib/dr_wav.h "https://raw.githubusercontent.com/mackron/dr_libs/master/dr_wav.h"
           curl -fSL -o Lib/miniaudio.h "https://raw.githubusercontent.com/mackron/miniaudio/master/miniaudio.h"
+          echo "Verified headers and libraries:"
+          ls -la Lib/sherpa-onnx/include/sherpa-onnx/c-api/
+          ls -la Lib/sherpa-onnx/lib/
 
       - name: Build ndwk (Unix)
         if: runner.os != 'Windows'
