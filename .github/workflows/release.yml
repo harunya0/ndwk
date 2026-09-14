@@ -16,29 +16,30 @@ env:
 jobs:
   build-native:
     strategy:
+      fail-fast: false
       matrix:
         include:
           - os: ubuntu-latest
             platform: linux-x64
-            sherpa_suffix: linux-x64
+            sherpa_archive: sherpa-onnx-v1.10.45-linux-x64-shared.tar.bz2
             lib_ext: so
             archive_ext: tar.gz
 
           - os: ubuntu-24.04-arm
             platform: linux-arm64
-            sherpa_suffix: linux-arm64
+            sherpa_archive: sherpa-onnx-v1.10.45-linux-aarch64-shared-cpu.tar.bz2
             lib_ext: so
             archive_ext: tar.gz
 
           - os: macos-latest
             platform: osx-arm64
-            sherpa_suffix: osx-arm64
+            sherpa_archive: sherpa-onnx-v1.10.45-osx-universal2-shared.tar.bz2
             lib_ext: dylib
             archive_ext: tar.gz
 
           - os: windows-latest
             platform: win-x64
-            sherpa_suffix: win-x64
+            sherpa_archive: sherpa-onnx-v1.10.45-win-x64-shared.tar.bz2
             lib_ext: dll
             archive_ext: zip
 
@@ -49,7 +50,7 @@ jobs:
 
       - name: Install dependencies (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y cmake ninja-build
+        run: sudo DEBIAN_FRONTEND=noninteractive apt-get update && sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends cmake ninja-build
 
       - name: Install dependencies (macOS)
         if: runner.os == 'macOS'
@@ -59,21 +60,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p Lib
-          if [[ "${{ matrix.platform }}" == "win-x64" ]]; then
-            ARCHIVE="sherpa-onnx-${{ env.SHERPA_VER }}-${{ matrix.sherpa_suffix }}.zip"
-          else
-            ARCHIVE="sherpa-onnx-${{ env.SHERPA_VER }}-${{ matrix.sherpa_suffix }}.tar.bz2"
-          fi
-          URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/${{ env.SHERPA_VER }}/${ARCHIVE}"
+          URL="https://github.com/k2-fsa/sherpa-onnx/releases/download/${{ env.SHERPA_VER }}/${{ matrix.sherpa_archive }}"
           echo "Downloading: ${URL}"
-          curl -fSL -o "Lib/${ARCHIVE}" "${URL}"
-
-          if [[ "${ARCHIVE}" == *.zip ]]; then
-            cd Lib && unzip -q "${ARCHIVE}" && cd ..
-          else
-            tar -xjf "Lib/${ARCHIVE}" -C Lib/
-          fi
-
+          curl -fSL -o "Lib/${{ matrix.sherpa_archive }}" "${URL}"
+          tar -xjf "Lib/${{ matrix.sherpa_archive }}" -C Lib/
           EXTRACTED=$(find Lib -maxdepth 1 -type d -name "sherpa-onnx-*" | head -1)
           mv "${EXTRACTED}" Lib/sherpa-onnx
 
@@ -88,15 +78,14 @@ jobs:
         run: |
           cmake -B build -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
-            -DNDWK_PORTABLE=ON \
-            -DCMAKE_C_FLAGS="-O3 -flto -fPIC"
+            -DNDWK_PORTABLE=ON
           cmake --build build
 
       - name: Build ndwk (Windows)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          cmake -B build -DNDWK_PORTABLE=ON -DCMAKE_C_FLAGS="/O2"
+          cmake -B build -DNDWK_PORTABLE=ON
           cmake --build build --config Release
 
       - name: Package native libraries (Unix)
@@ -107,7 +96,7 @@ jobs:
           mkdir -p "${STAGING}"
           cp build/libndwk.${{ matrix.lib_ext }} "${STAGING}/"
           cp Lib/sherpa-onnx/lib/libsherpa-onnx-c-api.${{ matrix.lib_ext }} "${STAGING}/"
-          cp Lib/sherpa-onnx/lib/libonnxruntime.${{ matrix.lib_ext }} "${STAGING}/"
+          cp Lib/sherpa-onnx/lib/libonnxruntime*.${{ matrix.lib_ext }} "${STAGING}/" 2>/dev/null || true
           tar -czf "${STAGING}.${{ matrix.archive_ext }}" "${STAGING}/"
 
       - name: Package native libraries (Windows)
@@ -118,11 +107,11 @@ jobs:
           $staging = "ndwk-v${ver}-${{ matrix.platform }}"
           New-Item -ItemType Directory -Force -Path $staging | Out-Null
 
-          # Copy ndwk.dll (Release output location varies)
+          # Copy ndwk.dll
           $ndwkDll = Get-ChildItem -Path build -Recurse -Filter "ndwk.dll" | Select-Object -First 1
           if ($ndwkDll) { Copy-Item $ndwkDll.FullName -Destination "$staging/" }
 
-          # Copy sherpa-onnx DLLs from lib/ and bin/
+          # Copy all DLLs from sherpa-onnx (cargs, onnxruntime, sherpa-onnx-c-api)
           Get-ChildItem "Lib/sherpa-onnx/lib/*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination "$staging/"
           Get-ChildItem "Lib/sherpa-onnx/bin/*.dll" -ErrorAction SilentlyContinue | Copy-Item -Destination "$staging/"
 
@@ -217,7 +206,6 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
           NDWK_LIB_DIR: /tmp/ndwk-stub
         run: |
-          # Create stub lib dir so build.rs skips download during publish
           mkdir -p /tmp/ndwk-stub
           touch /tmp/ndwk-stub/libndwk.so
           cargo publish --allow-dirty

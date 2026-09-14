@@ -5,23 +5,27 @@ project(ndwk VERSION 0.1.0 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 
-# CI ビルドでは -DNDWK_PORTABLE=ON で -march=native を無効化
 option(NDWK_PORTABLE "Disable -march=native for portable binaries" OFF)
-if(NOT NDWK_PORTABLE)
-    add_compile_options(-march=native)
-endif()
 
-# コンパイル・リンク最適化オプション
-add_compile_options(
-    -Wall -Wextra -O3 -flto
-    -fno-math-errno
-    -fno-trapping-math
-    -fomit-frame-pointer
-    -ffunction-sections -fdata-sections
-)
-add_link_options(-flto -O3)
-add_link_options(-Wl,--gc-sections)
-add_link_options(-s)
+if(MSVC)
+    add_compile_options(/O2 /W3 /MP)
+else()
+    if(NOT NDWK_PORTABLE)
+        add_compile_options(-march=native)
+    endif()
+    add_compile_options(
+        -Wall -Wextra -O3 -flto
+        -fno-math-errno
+        -fno-trapping-math
+        -fomit-frame-pointer
+        -ffunction-sections -fdata-sections
+    )
+    add_link_options(-flto -O3)
+    if(NOT APPLE)
+        add_link_options(-Wl,--gc-sections)
+        add_link_options(-s)
+    endif()
+endif()
 
 # マイコン向け低RAMモードの切り替えオプション
 option(NDWK_LOW_RAM "Enable Low-RAM profile for microcontrollers" OFF)
@@ -61,6 +65,7 @@ add_library(ndwk_shared SHARED ${CORE_SOURCES})
 
 set_target_properties(ndwk_shared PROPERTIES 
     OUTPUT_NAME "ndwk"
+    WINDOWS_EXPORT_ALL_SYMBOLS ON
     BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/lib"
     INSTALL_RPATH "$ORIGIN/../Lib/sherpa-onnx/lib"
 )
@@ -77,10 +82,10 @@ target_link_directories(ndwk_shared PRIVATE
 target_link_libraries(ndwk_shared PRIVATE
     sherpa-onnx-c-api
     onnxruntime
-    m
-    pthread
-    dl
 )
+if(UNIX)
+    target_link_libraries(ndwk_shared PRIVATE m pthread dl)
+endif()
 
 # CLI 実行ファイル
 add_executable(ndwk
@@ -103,10 +108,10 @@ target_link_libraries(ndwk PRIVATE
     ndwk_static
     sherpa-onnx-c-api
     onnxruntime
-    m
-    pthread
-    dl
 )
+if(UNIX)
+    target_link_libraries(ndwk PRIVATE m pthread dl)
+endif()
 
 set_target_properties(ndwk PROPERTIES
     BUILD_RPATH "${CMAKE_CURRENT_SOURCE_DIR}/Lib/sherpa-onnx/lib"

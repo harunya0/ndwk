@@ -49,7 +49,7 @@ if not exist "Lib\onnxruntime_c_api.h" (
 if not exist "Lib\sherpa-onnx" (
     echo [4/4] Downloading sherpa-onnx C-API library for Windows...
     set SHERPA_VER=v1.10.45
-    set ARCHIVE=sherpa-onnx-!SHERPA_VER!-win-x64.zip
+    set ARCHIVE=sherpa-onnx-!SHERPA_VER!-win-x64-shared.tar.bz2
     set URL=https://github.com/k2-fsa/sherpa-onnx/releases/download/!SHERPA_VER!/!ARCHIVE!
     echo Downloading from: !URL!
     curl.exe -fSL --progress-bar -o "Lib\!ARCHIVE!" "!URL!"
