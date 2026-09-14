@@ -2,7 +2,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 
-const NDWK_VERSION: &str = "0.1.2";
+const NDWK_VERSION: &str = "0.1.3";
 
 fn main() {
     println!("cargo:rerun-if-env-changed=NDWK_LIB_DIR");

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(ndwk VERSION 0.1.2 LANGUAGES C)
+project(ndwk VERSION 0.1.3 LANGUAGES C)
 
 # C11 標準を強制
 set(CMAKE_C_STANDARD 11)
