@@ -15,6 +15,43 @@ pub enum NdwkLang {
 type NdwkOnPartialCb = Option<unsafe extern "C" fn(text: *const c_char, user_data: *mut c_void)>;
 type NdwkOnFinalCb = Option<unsafe extern "C" fn(lang: NdwkLang, text: *const c_char, user_data: *mut c_void)>;
 
+/// ndwk 音声認識エンジンの詳細設定
+#[derive(Debug, Clone)]
+pub struct NdwkConfig {
+    pub models_dir: String,
+    pub default_lang: NdwkLang,
+    pub auto_detect: bool,
+    pub enable_punct: bool,
+    pub vad_threshold: f32,
+    pub vad_min_silence_sec: f32,
+    pub vad_min_speech_sec: f32,
+    pub vad_max_speech_sec: f32,
+    pub num_threads: i32,
+    pub partial_interval_sec: f32,
+    pub partial_window_sec: f32,
+    pub preroll_sec: f32,
+}
+
+impl Default for NdwkConfig {
+    fn default() -> Self {
+        let raw = unsafe { ndwk_default_config() };
+        Self {
+            models_dir: "models".to_string(),
+            default_lang: raw.default_lang,
+            auto_detect: raw.auto_detect,
+            enable_punct: raw.enable_punct,
+            vad_threshold: raw.vad_threshold,
+            vad_min_silence_sec: raw.vad_min_silence_sec,
+            vad_min_speech_sec: raw.vad_min_speech_sec,
+            vad_max_speech_sec: raw.vad_max_speech_sec,
+            num_threads: raw.num_threads,
+            partial_interval_sec: raw.partial_interval_sec,
+            partial_window_sec: raw.partial_window_sec,
+            preroll_sec: raw.preroll_sec,
+        }
+    }
+}
+
 #[repr(C)]
 struct NdwkConfigRaw {
     models_dir: *const c_char,
@@ -69,22 +106,46 @@ where
         on_partial: P,
         on_final: F,
     ) -> Result<Self, &'static str> {
+        let config = NdwkConfig {
+            models_dir: models_dir.to_string(),
+            default_lang: lang,
+            enable_punct,
+            ..Default::default()
+        };
+        Self::with_config(config, on_partial, on_final)
+    }
+
+    /// 詳細設定 (NdwkConfig) を指定してエンジンを初期化
+    pub fn with_config(
+        config: NdwkConfig,
+        on_partial: P,
+        on_final: F,
+    ) -> Result<Self, &'static str> {
         let mut callbacks = Box::new(Callbacks {
             on_partial,
             on_final,
         });
 
-        let mut config = unsafe { ndwk_default_config() };
-        let c_models_dir = CString::new(models_dir).map_err(|_| "Failed to convert models_dir to CString")?;
+        let mut raw_config = unsafe { ndwk_default_config() };
+        let c_models_dir = CString::new(config.models_dir.as_str()).map_err(|_| "Failed to convert models_dir to CString")?;
 
-        config.models_dir = c_models_dir.as_ptr();
-        config.default_lang = lang;
-        config.enable_punct = enable_punct;
-        config.on_partial = Some(Self::trampoline_partial);
-        config.on_final = Some(Self::trampoline_final);
-        config.user_data = &mut *callbacks as *mut _ as *mut c_void;
+        raw_config.models_dir = c_models_dir.as_ptr();
+        raw_config.default_lang = config.default_lang;
+        raw_config.auto_detect = config.auto_detect;
+        raw_config.enable_punct = config.enable_punct;
+        raw_config.vad_threshold = config.vad_threshold;
+        raw_config.vad_min_silence_sec = config.vad_min_silence_sec;
+        raw_config.vad_min_speech_sec = config.vad_min_speech_sec;
+        raw_config.vad_max_speech_sec = config.vad_max_speech_sec;
+        raw_config.num_threads = config.num_threads;
+        raw_config.partial_interval_sec = config.partial_interval_sec;
+        raw_config.partial_window_sec = config.partial_window_sec;
+        raw_config.preroll_sec = config.preroll_sec;
+        raw_config.on_partial = Some(Self::trampoline_partial);
+        raw_config.on_final = Some(Self::trampoline_final);
+        raw_config.user_data = &mut *callbacks as *mut _ as *mut c_void;
 
-        let handle = unsafe { ndwk_create(&config) };
+        let handle = unsafe { ndwk_create(&raw_config) };
         if handle.is_null() {
             return Err("Failed to create NdwkEngine");
         }

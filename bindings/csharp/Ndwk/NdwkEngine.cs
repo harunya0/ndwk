@@ -14,24 +14,39 @@ public sealed class NdwkEngine : IDisposable
     public event Action<NdwkLang, string>? OnFinal;
 
     public NdwkEngine(string modelsDir = "models", NdwkLang lang = NdwkLang.Ja, bool enablePunct = true)
+        : this(new NdwkConfig { ModelsDir = modelsDir, DefaultLang = lang, EnablePunct = enablePunct })
     {
-        // デフォルト情報の取得
-        var config = NdwkNative.DefaultConfig();
+    }
+
+    public NdwkEngine(NdwkConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+
+        var nativeConfig = NdwkNative.DefaultConfig();
 
         // 設定の上書き
-        config.ModelsDir = Marshal.StringToHGlobalAnsi(modelsDir);
-        config.DefaultLang = lang;
-        config.EnablePunct = enablePunct;
+        nativeConfig.ModelsDir = Marshal.StringToCoTaskMemUTF8(config.ModelsDir);
+        nativeConfig.DefaultLang = config.DefaultLang;
+        nativeConfig.AutoDetect = config.AutoDetect;
+        nativeConfig.EnablePunct = config.EnablePunct;
+        nativeConfig.VadThreshold = config.VadThreshold;
+        nativeConfig.VadMinSilenceSec = config.VadMinSilenceSec;
+        nativeConfig.VadMinSpeechSec = config.VadMinSpeechSec;
+        nativeConfig.VadMaxSpeechSec = config.VadMaxSpeechSec;
+        nativeConfig.NumThreads = config.NumThreads;
+        nativeConfig.PartialIntervalSec = config.PartialIntervalSec;
+        nativeConfig.PartialWindowSec = config.PartialWindowSec;
+        nativeConfig.PrerollSec = config.PrerollSec;
 
-        // GC回回収防のため関数ポインタ化
+        // GC回収防止のため関数ポインタ化
         _partialCallback = HandlePartial;
         _finalCallback = HandleFinal;
-        config.OnPartial = Marshal.GetFunctionPointerForDelegate(_partialCallback);
-        config.OnFinal = Marshal.GetFunctionPointerForDelegate(_finalCallback);
+        nativeConfig.OnPartial = Marshal.GetFunctionPointerForDelegate(_partialCallback);
+        nativeConfig.OnFinal = Marshal.GetFunctionPointerForDelegate(_finalCallback);
 
         try
         {
-            _handle = NdwkNative.Create(ref config);
+            _handle = NdwkNative.Create(ref nativeConfig);
             if (_handle == IntPtr.Zero)
             {
                 throw new InvalidOperationException("Failed to create NdwkEngine instance.");
@@ -39,7 +54,7 @@ public sealed class NdwkEngine : IDisposable
         }
         finally
         {
-            Marshal.FreeHGlobal(config.ModelsDir);
+            Marshal.FreeCoTaskMem(nativeConfig.ModelsDir);
         }
     }
 
