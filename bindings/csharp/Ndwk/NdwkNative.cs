@@ -20,6 +20,25 @@ public delegate void NdwkOnPartialCallback(IntPtr textData, IntPtr userData);
 public delegate void NdwkOnFinalCallback(NdwkLang lang, IntPtr textData, IntPtr userData);
 
 [StructLayout(LayoutKind.Sequential)]
+public struct NdwkFrameMeta
+{
+    public ulong FrameIndex;
+    public float F0;
+    public float DeltaF0;
+    public float Rms;
+    public float Energy;
+    public byte IsSpeech;
+    private byte _res0, _res1, _res2;
+    public uint SilenceFrames;
+    public float VadProb;
+    public int TokenId;
+    public float TokenConfidence;
+}
+
+[UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+public delegate void NdwkOnFrameMetaCallback(in NdwkFrameMeta meta, IntPtr userData);
+
+[StructLayout(LayoutKind.Sequential)]
 public struct NdwkConfigNative
 {
     public IntPtr ModelsDir;
@@ -39,6 +58,7 @@ public struct NdwkConfigNative
 
     public IntPtr OnPartial;
     public IntPtr OnFinal;
+    public IntPtr OnFrameMeta;
     public IntPtr UserData;
 }
 

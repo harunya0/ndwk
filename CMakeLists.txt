@@ -45,6 +45,7 @@ set(CORE_SOURCES
     Src/model_config.c
     Src/punct_engine.c
     Src/lang_detector.c
+    Src/feature_extractor.c
 )
 
 # 静的ライブラリ (libndwk.a)

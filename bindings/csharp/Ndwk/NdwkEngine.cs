@@ -1,5 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Channels;
 
 namespace Ndwk;
 
@@ -8,10 +11,13 @@ public sealed class NdwkEngine : IDisposable
     private IntPtr _handle;
     private readonly NdwkOnPartialCallback _partialCallback;
     private readonly NdwkOnFinalCallback _finalCallback;
+    private readonly NdwkOnFrameMetaCallback _frameMetaCallback;
+    private Channel<NdwkFrameMeta>? _metaChannel;
     private bool _disposed;
 
     public event Action<string>? OnPartial;
     public event Action<NdwkLang, string>? OnFinal;
+    public event Action<NdwkFrameMeta>? OnFrameMeta;
 
     public NdwkEngine(string modelsDir = "models", NdwkLang lang = NdwkLang.Ja, bool enablePunct = true)
         : this(new NdwkConfig { ModelsDir = modelsDir, DefaultLang = lang, EnablePunct = enablePunct })
@@ -41,8 +47,10 @@ public sealed class NdwkEngine : IDisposable
         // GC回収防止のため関数ポインタ化
         _partialCallback = HandlePartial;
         _finalCallback = HandleFinal;
+        _frameMetaCallback = HandleFrameMeta;
         nativeConfig.OnPartial = Marshal.GetFunctionPointerForDelegate(_partialCallback);
         nativeConfig.OnFinal = Marshal.GetFunctionPointerForDelegate(_finalCallback);
+        nativeConfig.OnFrameMeta = Marshal.GetFunctionPointerForDelegate(_frameMetaCallback);
 
         try
         {
@@ -70,6 +78,36 @@ public sealed class NdwkEngine : IDisposable
         if (text != null) OnFinal?.Invoke(lang, text);
     }
 
+    private void HandleFrameMeta(in NdwkFrameMeta meta, IntPtr userData)
+    {
+        OnFrameMeta?.Invoke(meta);
+        _metaChannel?.Writer.TryWrite(meta);
+    }
+
+    /// <summary>
+    /// 音響フレームメタデータの非同期ストリームを取得します。
+    /// </summary>
+    public async IAsyncEnumerable<NdwkFrameMeta> GetFrameMetaStreamAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        _metaChannel ??= Channel.CreateUnbounded<NdwkFrameMeta>(new UnboundedChannelOptions
+        {
+            SingleWriter = true
+        });
+
+        var reader = _metaChannel.Reader;
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            if (await reader.WaitToReadAsync(cancellationToken).ConfigureAwait(false))
+            {
+                while (reader.TryRead(out var item))
+                {
+                    yield return item;
+                }
+            }
+        }
+    }
+
     public void FeedAudio(ReadOnlySpan<float> samples)
     {
         ThrowIfDisposed();
@@ -93,6 +131,7 @@ public sealed class NdwkEngine : IDisposable
     {
         if (!_disposed)
         {
+            _metaChannel?.Writer.TryComplete();
             if (_handle != IntPtr.Zero)
             {
                 NdwkNative.Destroy(_handle);

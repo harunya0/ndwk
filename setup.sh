@@ -50,13 +50,11 @@ if [[ ! -d Lib/sherpa-onnx ]]; then
     SHERPA_VER="v1.10.45"
     
     if [[ "$OS" == "Linux" && "$ARCH" == "x86_64" ]]; then
-        ARCHIVE="sherpa-onnx-${SHERPA_VER}-linux-x64.tar.bz2"
+        ARCHIVE="sherpa-onnx-${SHERPA_VER}-linux-x64-shared.tar.bz2"
     elif [[ "$OS" == "Linux" && ("$ARCH" == "aarch64" || "$ARCH" == "arm64") ]]; then
-        ARCHIVE="sherpa-onnx-${SHERPA_VER}-linux-arm64.tar.bz2"
-    elif [[ "$OS" == "Darwin" && "$ARCH" == "arm64" ]]; then
-        ARCHIVE="sherpa-onnx-${SHERPA_VER}-osx-arm64.tar.bz2"
-    elif [[ "$OS" == "Darwin" && "$ARCH" == "x86_64" ]]; then
-        ARCHIVE="sherpa-onnx-${SHERPA_VER}-osx-x64.tar.bz2"
+        ARCHIVE="sherpa-onnx-${SHERPA_VER}-linux-aarch64-shared-cpu.tar.bz2"
+    elif [[ "$OS" == "Darwin" ]]; then
+        ARCHIVE="sherpa-onnx-${SHERPA_VER}-osx-universal2-shared.tar.bz2"
     else
         echo "Error: Unsupported OS/Architecture: $OS $ARCH"
         exit 1

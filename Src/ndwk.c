@@ -15,6 +15,7 @@
 #include "audio_history.h"
 #include "lang_detector.h"
 #include "punct_engine.h"
+#include "feature_extractor.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +36,7 @@ struct ndwk_t {
     audio_history_t *history;
     lang_detector_t *lid;
     punct_engine_t *punct;
+    feature_extractor_t fe;
 
     ndwk_lang_t current_lang;
     char last_patial[1024];
@@ -105,6 +107,7 @@ ndwk_config_t ndwk_default_config(void) {
     cfg.preroll_sec = NDWK_PREROLL_SEC;
     cfg.on_partial = NULL;
     cfg.on_final = NULL;
+    cfg.on_frame_meta = NULL;
     cfg.user_data = NULL;
     return cfg;
 }
@@ -115,6 +118,7 @@ ndwk_t *ndwk_create(const ndwk_config_t *config) {
     memset(p, 0, sizeof(ndwk_t));
     p->config = *config;
     p->current_lang = config->default_lang;
+    feature_extractor_init(&p->fe);
     // サブモジュール初期化
     p->vad = vad_detector_create(config);
     p->history = audio_history_create(NDWK_SAMPLE_RATE, NDWK_HISTORY_KEEP_SEC);
@@ -163,10 +167,18 @@ void ndwk_feed_audio(ndwk_t *p, const float *samples, size_t num_samples) {
 
         audio_history_push(p->history, samples + offset, n);
         vad_detector_accept(p->vad, samples + offset, n);
+
+        bool is_speech = vad_detector_is_speech(p->vad);
+        if (p->config.on_frame_meta) {
+            ndwk_frame_meta_t meta;
+            float vad_prob = is_speech ? 1.0f : 0.0f;
+            feature_extractor_process_frame(&p->fe, samples + offset, n, is_speech, vad_prob, -1, 0.0f, &meta);
+            p->config.on_frame_meta(&meta, p->config.user_data);
+        }
+
         offset += n;
         p->samples_since_partial += n;
 
-        bool is_speech = vad_detector_is_speech(p->vad);
         if (is_speech) {
             p->speech_samples += n;
         } else {

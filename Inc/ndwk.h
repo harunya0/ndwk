@@ -43,6 +43,13 @@ typedef void (*ndwk_on_partial_cb)(const char *text, void *user_data);
 typedef void (*ndwk_on_final_cb)(ndwk_lang_t lang, const char *text, void *user_data);
 
 /**
+ * @brief 音響フレームメタデータ出力時のコールバック関数型 (ゼロコピー通知)
+ * @param meta メタデータ構造体ポインタ (呼び出しスコープ内でのみ有効)
+ * @param user_data ユーザー登録の自由ポインタ
+ */
+typedef void (*ndwk_on_frame_meta_cb)(const ndwk_frame_meta_t *meta, void *user_data);
+
+/**
  * @brief ndwk エンジン初期化設定構造体
  * 
  * すべての言語から直接編集可能な設定パラメータです。
@@ -67,6 +74,7 @@ typedef struct {
     /* --- 4. 出力コールバック --- */
     ndwk_on_partial_cb on_partial;   /**< 速報字幕コールバック (NULL可) */
     ndwk_on_final_cb   on_final;     /**< 確定字幕コールバック (NULL可) */
+    ndwk_on_frame_meta_cb on_frame_meta; /**< 音響フレームメタデータコールバック (NULL可) */
     void *user_data;                 /**< コールバックに引き渡されるユーザーポインタ (NULL可) */
 } ndwk_config_t;
 
