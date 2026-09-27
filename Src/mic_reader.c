@@ -132,7 +132,9 @@ mic_reader_t *mic_reader_create(unsigned int sample_rate) {
     config.dataCallback = on_audio_capture;
     config.pUserData = mic;
 
-    if (ma_device_init(NULL, &config, &mic->device) != MA_SUCCESS) {
+    ma_result res = ma_device_init(NULL, &config, &mic->device);
+    if (res != MA_SUCCESS) {
+        fprintf(stderr, "[Mic] Error: ma_device_init failed (code: %d)\n", res);
         return NULL;
     }
 
@@ -148,8 +150,9 @@ void mic_reader_destroy(mic_reader_t *mic) {
 
 bool mic_reader_start(mic_reader_t *mic) {
     if (!mic || mic->is_started) return false;
-    if (ma_device_start(&mic->device) != MA_SUCCESS) {
-        fprintf(stderr, "[Mic] Failed to start capture device.\n");
+    ma_result res = ma_device_start(&mic->device);
+    if (res != MA_SUCCESS) {
+        fprintf(stderr, "[Mic] Failed to start capture device (code: %d).\n", res);
         return false;
     }
     mic->is_started = true;
