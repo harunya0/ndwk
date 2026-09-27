@@ -80,11 +80,11 @@ echo "=================================================="
 echo " Downloading Models..."
 echo "=================================================="
 
-# Silero VAD
+# Silero VAD (v5)
 if [[ ! -f models/silero_vad.onnx ]]; then
-    echo "[-] Downloading silero_vad.onnx..."
+    echo "[-] Downloading silero_vad.onnx (v5)..."
     curl -fSL --progress-bar -o models/silero_vad.onnx \
-        "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad.onnx"
+        "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/silero_vad_v5.onnx"
 else
     echo "[-] models/silero_vad.onnx already exists."
 fi
